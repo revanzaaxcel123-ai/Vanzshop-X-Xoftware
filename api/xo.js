@@ -111,6 +111,21 @@ function validateAccounts(accounts, max = 5000) {
   if (cleaned.some(v => !v)) throw Object.assign(new Error('Setiap data akun stok wajib berupa string non-kosong.'), { status: 400 });
   return cleaned;
 }
+
+function looksLikeMissingUser(error) {
+  const msg = `${error?.message || ''} ${JSON.stringify(error?.upstream || {})}`.toLowerCase();
+  return msg.includes('user not found') || msg.includes('sender not found') || msg.includes('not registered') || msg.includes('pengguna tidak ditemukan');
+}
+async function withAutoRegister(sender, fn, name = DEFAULT_NAME) {
+  try {
+    return await fn();
+  } catch (error) {
+    if (!sender || !looksLikeMissingUser(error)) throw error;
+    await xoFetch(ORDER.register, { method: 'POST', body: { sender, name } });
+    return await fn();
+  }
+}
+
 async function xoFetch(path, options = {}) {
   if (!API_KEY) throw Object.assign(new Error('Upstream configuration missing'), { status: 500 });
   const url = `${BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
@@ -306,7 +321,7 @@ module.exports = async function handler(req, res) {
         const quantity = int(b.quantity, 0);
         const email = str(b.email, 160).toLowerCase();
         if (!validOrderCode(code) || quantity < 1 || !isEmail(email)) return fail(res, 'Data pembelian belum lengkap atau SKU tidak valid.');
-        const upstream = await xoFetch(ORDER.orderQris, { method: 'POST', body: { sender: DEFAULT_SENDER, code, quantity } });
+        const upstream = await withAutoRegister(DEFAULT_SENDER, () => xoFetch(ORDER.orderQris, { method: 'POST', body: { sender: DEFAULT_SENDER, code, quantity } }));
         const transaction = ensureObject(upstream?.data || upstream);
         const transactionId = str(transaction.transaction_id, 160);
         if (!transactionId) return fail(res, 'Xoftware tidak mengembalikan transaction_id.', 502);
@@ -326,7 +341,7 @@ module.exports = async function handler(req, res) {
         const email = str(b.email, 160).toLowerCase();
         if (!Number.isInteger(amount) || amount < 1000 || amount > 1000000) return fail(res, 'Nominal isi saldo harus Rp1.000 sampai Rp1.000.000.');
         if (email && !isEmail(email)) return fail(res, 'Email tidak valid.');
-        const upstream = await xoFetch(ORDER.deposit, { method: 'POST', body: { sender: DEFAULT_SENDER, amount } });
+        const upstream = await withAutoRegister(DEFAULT_SENDER, () => xoFetch(ORDER.deposit, { method: 'POST', body: { sender: DEFAULT_SENDER, amount } }));
         const transaction = ensureObject(upstream?.data || upstream);
         const transactionId = str(transaction.transaction_id, 160);
         if (!transactionId) return fail(res, 'Xoftware tidak mengembalikan transaction_id.', 502);
@@ -365,9 +380,9 @@ module.exports = async function handler(req, res) {
         const b = bodyOf(req);
         const sender = str(q(req.query || {}, 'sender') || b.sender || DEFAULT_SENDER, 160);
         if (!sender) return fail(res, 'sender wajib diisi.');
-        if (method(req, 'POST')) return ok(res, await xoFetch(ORDER.balance, { method: 'POST', body: { sender } }));
+        if (method(req, 'POST')) return ok(res, await withAutoRegister(sender, () => xoFetch(ORDER.balance, { method: 'POST', body: { sender } })));
         if (!method(req, 'GET')) return fail(res, 'Method tidak diizinkan.', 405);
-        return ok(res, await xoFetch(`${ORDER.balance}${buildQuery({ sender })}`));
+        return ok(res, await withAutoRegister(sender, () => xoFetch(`${ORDER.balance}${buildQuery({ sender })}`)));
       }
 
       case 'checkout_balance': {
@@ -378,7 +393,7 @@ module.exports = async function handler(req, res) {
         const code = str(b.code, 50);
         const quantity = int(b.quantity, 0);
         if (!sender || !validOrderCode(code) || quantity < 1) return fail(res, 'sender, code, dan quantity wajib valid.');
-        return ok(res, await xoFetch(ORDER.orderBalance, { method: 'POST', body: { sender, code, quantity } }));
+        return ok(res, await withAutoRegister(sender, () => xoFetch(ORDER.orderBalance, { method: 'POST', body: { sender, code, quantity } })));
       }
 
       // ---------------- Admin: Reseller H2H ----------------
