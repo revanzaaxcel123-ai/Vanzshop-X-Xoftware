@@ -783,3 +783,12 @@ body::after { width: 620px; height: 620px; right:-310px; top:120px; }
 @keyframes xs { to { transform:rotate(360deg) } }
 @media (max-width:900px){.xhero-grid,.xdetail-grid,.xinvoice-grid{grid-template-columns:1fr}.xgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:640px){.xhero{padding-top:36px}.xstats{grid-template-columns:1fr}.xgrid{grid-template-columns:1fr}.xtoolbar{flex-direction:column;align-items:stretch}.nav a{padding:0 9px}.brand-name{font-size:14px}}
+
+/* VanzShop interaction polish */
+.xcard-clickable { cursor: pointer; outline: none; }
+.xcard-clickable:focus-visible { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent), var(--shadow); }
+.xcard-clickable .btn { position: relative; z-index: 2; }
+.xvariant-row { transition: border-color .16s, background .16s, transform .16s; }
+.xvariant-row:hover:not(.is-disabled) { border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); transform: translateY(-1px); }
+.xvariant-row.is-disabled { opacity: .5; cursor: not-allowed; }
+.form-error.show { display: block; }
