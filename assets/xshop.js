@@ -129,6 +129,7 @@ function visualMarkup(p, extra=''){
 function calcQtyFor(p){ return p?.source==='reseller' ? 20 : (variants(p).length ? 20 : 20); }
 
 async function loadCatalog(){
+  state.source='all'; state.q=''; state.sort='store';
   shell(`<main class="page"><section class="hero wrap"><div class="hero-copy"><div class="hero-badge"><i></i>VanzShop · Katalog Live</div><h1>Produk digital yang<br><span>siap dipakai.</span></h1><p>Temukan produk pilihan, lihat stok secara langsung, lalu checkout dengan proses otomatis.</p><div class="hero-trust"><span>✓ Stok live</span><span>✓ Checkout cepat</span><span>✓ Email cukup</span></div></div><div class="hero-card"><div class="hero-card-kicker">VanzShop.com</div><div class="hero-card-big">Simple.</div><div class="hero-card-sub">Cepat. Otomatis.</div><div class="hero-card-glow"></div></div></section>
   <section class="catalog wrap">
     <div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">—</b> produk</span><span><b>LIVE</b> stok</span></div></div>
@@ -185,44 +186,50 @@ function detailHtml(p){
         ${hasVar?`<div class="step-block"><div class="step-head"><span>1</span><b>Pilih varian</b></div><div class="variant-list">${vs.map(x=>{const active=String(x.id)===String(chosen), st=x.stock, out=st!=null&&Number(st)<=0; return `<button type="button" class="variant ${active?'active':''} ${out?'disabled':''}" data-variant="${esc(x.id)}" ${out?'disabled':''}><span><i></i>${esc(x.name||x.title||'Varian')}</span><span><small>${st==null?'':`Stok ${Number(st)}`}</small><b>${money(x.price)}</b></span></button>`;}).join('')}</div></div>`:''}
         <div class="step-block"><div class="step-head"><span>${hasVar?2:1}</span><b>Email pembeli</b></div><input id="buyerEmail" class="input big" type="email" inputmode="email" autocomplete="email" placeholder="nama@email.com" value="${esc(localStorage.getItem('vanz_email')||'')}"><p class="field-hint">Hasil transaksi dan detail pesanan tampil di halaman pesanan.</p></div>
         <div class="step-block"><div class="step-head"><span>${hasVar?3:2}</span><b>Jumlah</b></div><div class="qty"><button type="button" id="qtyMinus">−</button><b id="qtyVal">${state.qty}</b><button type="button" id="qtyPlus">+</button></div></div>
-        <div class="step-block"><div class="step-head"><span>${hasVar?4:3}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">⌁</div><div><b>${isPartner?'Pembelian otomatis':'QRIS'}</b><small>${isPartner?'Diproses instan dari stok partner.':'Scan dari e-wallet atau m-banking.'}</small></div><span>✓</span></div></div>
+        <div class="step-block"><div class="step-head"><span>${hasVar?4:3}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">⌁</div><div><b>${isPartner?'Belum tersedia untuk checkout publik':'QRIS'}</b><small>${isPartner?'Produk partner memakai saldo reseller toko dan harus diproses admin setelah pembayaran customer terpisah.':'Scan dari e-wallet atau m-banking.'}</small></div><span>${isPartner?'!':'✓'}</span></div></div>
         <div class="summary"><div><span>${esc(v?.name||p.title)}</span><b id="sumUnit">${money(price)}</b></div><div><span>Jumlah</span><b id="sumQty">×${state.qty}</b></div><div class="summary-total"><span>Total</span><strong id="sumTotal">${money(price*state.qty)}</strong></div></div>
-        <button class="btn btn-primary btn-buy" id="buyNow" type="button">${isPartner?'Beli Sekarang':'Lanjutkan Pembayaran'} <span>→</span></button>
+        <button class="btn btn-primary btn-buy" id="buyNow" type="button" ${(isPartner||stock===0)?'disabled':''}>${isPartner?'Checkout partner dinonaktifkan':stock===0?'Stok habis':'Lanjutkan Pembayaran'} <span>→</span></button>
         <div class="secure-note">🔒 Data pembayaran tidak disimpan sebagai database toko.</div>
       </aside>
     </div>
   </main>`,'catalog');
   $$('.variant').forEach(btn=>btn.onclick=()=>{state.variantId=btn.dataset.variant; state.qty=1; renderRoute();});
   $('#qtyMinus').onclick=()=>{state.qty=Math.max(1,state.qty-1);refreshTotal(p);};
-  $('#qtyPlus').onclick=()=>{const max=Math.min(20,Number(v?.stock??20)||20);state.qty=Math.min(max,state.qty+1);refreshTotal(p);};
+  $('#qtyPlus').onclick=()=>{const raw=v?.stock??productStock(p);const max=raw==null?20:Math.max(1,Math.min(20,Number(raw)||1));state.qty=Math.min(max,state.qty+1);refreshTotal(p);};
   $('#buyNow').onclick=()=>startCheckout(p);
 }
 function refreshTotal(p){ const vs=variants(p), v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0]; const price=Number(v?.price||productPrice(p)||0); $('#qtyVal').textContent=state.qty;$('#sumUnit').textContent=money(price);$('#sumQty').textContent='×'+state.qty;$('#sumTotal').textContent=money(price*state.qty); }
 
 async function startCheckout(p){
+  if(p.source==='reseller'){
+    toast('Checkout partner dinonaktifkan: endpoint reseller memotong saldo toko, bukan pembayaran customer.',true);
+    return;
+  }
   const email=String($('#buyerEmail')?.value||'').trim().toLowerCase();
   if(!emailOk(email)){ $('#buyerEmail')?.focus(); toast('Masukkan email yang aktif.',true); return; }
-  if(state.busy) return; state.busy=true; const btn=$('#buyNow'); if(btn){btn.disabled=true;btn.innerHTML='<span class="loader mini"></span> Memproses…';}
+  if(state.busy) return;
   const vs=variants(p), v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0];
+  const sku=String(v?.code||p.code||'').trim();
+  if(!sku){toast('SKU produk/varian tidak tersedia.',true);return;}
+  state.busy=true;
+  const btn=$('#buyNow'); if(btn){btn.disabled=true;btn.innerHTML='<span class="loader mini"></span> Memproses…';}
   try{
-    let result;
-    if(p.source==='reseller'){
-      result=await api('reseller_order',{stock_id:Number(p.id),variation_id:v?.id ?? undefined,quantity:state.qty,email});
-      const tx=result?.data?.reff_id || result?.reff_id || result?.data?.id || result?.id;
-      const accounts=result?.data?.accounts || result?.accounts || [];
-      saveLocalOrder({type:'partner',transaction_id:String(tx||Date.now()),reff_id:String(tx||''),email,product_title:p.title,variant:v?.name||'',total:Number(result?.data?.total_price||result?.total_price||productPrice(p)*state.qty),status:'success',accounts,created_at:Date.now()});
-      localStorage.setItem('vanz_email',email); location.hash='#/sukses';
-    } else {
-      result=await api('checkout_qris',{code:p.code,quantity:state.qty,email});
-      const data=result?.data || result;
-      const d=data?.data || data;
-      const transaction_id=String(d?.transaction_id || data?.transaction_id || '');
-      if(!transaction_id) throw new Error('Transaksi belum mendapatkan nomor referensi.');
-      saveLocalOrder({type:'owner',transaction_id,email,product_title:p.title,variant:v?.name||'',total:Number(d?.total_to_pay||d?.amount||priceFrom(p)*state.qty),status:d?.status||'pending',qr_string:d?.qr_string||'',link:d?.link||'',expired_at:Number(d?.expired_at||0),created_at:Date.now()});
-      localStorage.setItem('vanz_email',email); location.hash=`#/bayar/${encodeURIComponent(transaction_id)}`;
-    }
-  }catch(e){toast(e.message,true); if(btn){btn.disabled=false;btn.innerHTML=`${p.source==='reseller'?'Beli Sekarang':'Lanjutkan Pembayaran'} <span>→</span>`;} }
-  finally{state.busy=false;}
+    const result=await api('checkout_qris',{code:sku,quantity:state.qty,email});
+    const d=result?.transaction||{};
+    const transaction_id=String(d?.transaction_id||'');
+    if(!transaction_id) throw new Error('Transaksi belum mendapatkan nomor referensi.');
+    saveLocalOrder({
+      type:'owner', transaction_id, status_token:String(result?.status_token||''), email,
+      product_title:p.title, variant:v?.title||v?.name||'', sku,
+      total:Number(d?.total_to_pay||d?.amount||priceFrom(p)*state.qty), status:d?.status||'pending',
+      qr_string:d?.qr_string||'', link:d?.link||'', expired_at:Number(d?.expired_at||0), created_at:Date.now()
+    });
+    localStorage.setItem('vanz_email',email);
+    location.hash=`#/bayar/${encodeURIComponent(transaction_id)}`;
+  }catch(e){
+    toast(e.message,true);
+    if(btn){btn.disabled=false;btn.innerHTML='Lanjutkan Pembayaran <span>→</span>';}
+  } finally{state.busy=false;}
 }
 function priceFrom(p){const vs=variants(p);return Number(vs.find(x=>String(x.id)===String(state.variantId))?.price||productPrice(p)||0);}
 
@@ -237,9 +244,9 @@ function renderTopup(){
     if(email && !emailOk(email)){toast('Email tidak valid.',true);$('#topupEmail').focus();return;}
     if(state.busy)return; state.busy=true; const btn=$('#topupBuy'); btn.disabled=true;btn.innerHTML='<span class="loader mini"></span> Membuat pembayaran…';
     try{
-      const result=await api('deposit',{amount,email}); const data=result?.data||result; const d=data?.data||data; const transaction_id=String(d?.transaction_id||data?.transaction_id||'');
+      const result=await api('deposit',{amount,email}); const d=result?.transaction||{}; const transaction_id=String(d?.transaction_id||'');
       if(!transaction_id) throw new Error('Pembayaran belum mendapatkan nomor referensi.');
-      saveLocalOrder({type:'deposit',transaction_id,email,product_title:'Isi Saldo',variant:'Saldo toko',total:Number(d?.total_to_pay||d?.amount||amount),status:d?.status||'pending',qr_string:d?.qr_string||'',link:d?.link||'',expired_at:Number(d?.expired_at||0),created_at:Date.now()});
+      saveLocalOrder({type:'deposit',transaction_id,status_token:String(result?.status_token||''),email,product_title:'Isi Saldo',variant:'Saldo toko',total:Number(d?.total_to_pay||d?.amount||amount),status:d?.status||'pending',qr_string:d?.qr_string||'',link:d?.link||'',expired_at:Number(d?.expired_at||0),created_at:Date.now()});
       if(email)localStorage.setItem('vanz_email',email); location.hash=`#/bayar/${encodeURIComponent(transaction_id)}`;
     }catch(e){toast(e.message,true);btn.disabled=false;btn.innerHTML='Buat pembayaran <span>→</span>';} finally{state.busy=false;}
   };
@@ -251,7 +258,7 @@ function renderOrders(){
   const list=orders();
   shell(`<main class="orders wrap"><div class="orders-head"><div><span class="section-kicker">Riwayat</span><h1>Pesanan kamu</h1><p>Riwayat tersimpan di perangkat ini tanpa database toko.</p></div><a class="btn" href="#/">← Kembali belanja</a></div>
   <div class="order-list">${list.length?list.map(o=>`<button type="button" class="order-row" data-tx="${esc(o.transaction_id)}"><div class="order-art">${esc((o.product_title||'P')[0])}</div><div class="order-info"><b>${esc(o.product_title)}</b><span>${esc(o.variant||'')}${o.email?` · ${esc(o.email)}`:''}</span></div><div class="order-right"><strong>${money(o.total)}</strong><small>${o.status==='success'?'Selesai':o.status==='pending'?'Menunggu pembayaran':'Gagal'}</small></div></button>`).join(''):`<div class="empty-card"><div class="empty-icon">□</div><h3>Belum ada pesanan</h3><p>Pesanan yang kamu buat akan muncul di sini.</p></div>`}</div></main>`,'orders');
-  $$('.order-row').forEach(b=>b.onclick=()=>{const o=list.find(x=>x.transaction_id===b.dataset.tx); if(!o)return; if(o.type==='owner') location.hash=`#/bayar/${encodeURIComponent(o.transaction_id)}`; else showSuccess(o);});
+  $$('.order-row').forEach(b=>b.onclick=()=>{const o=list.find(x=>x.transaction_id===b.dataset.tx); if(!o)return; if(o.type==='owner'||o.type==='deposit') location.hash=`#/bayar/${encodeURIComponent(o.transaction_id)}`; else showSuccess(o);});
 }
 
 async function renderPayment(txid){
@@ -264,7 +271,22 @@ async function renderPayment(txid){
   if(timer)clearInterval(timer); timer=setInterval(()=>refreshInvoice(o),5000); refreshInvoice(o);
 }
 async function refreshInvoice(o){
-  try{ const data=await api('order_status',null,{transaction_id:o.transaction_id}); const d=data?.data||data; const status=String(d?.status||'').toLowerCase(); if(status){o.status=status;o.accounts=d?.accounts||[]; if(d?.total_to_pay)o.total=Number(d.total_to_pay);saveLocalOrder(o);} $('#invoiceStatus').textContent=status==='success'?'Selesai':status==='fail'?'Gagal':'Menunggu'; if(status==='success'){clearInterval(timer);showSuccess(o,d?.accounts||[]);} else if(status==='fail'){clearInterval(timer);toast('Pembayaran gagal atau dibatalkan.',true);} }catch(e){/* retry silently */}
+  try{
+    if(!o.status_token) throw new Error('Pesanan lama tidak memiliki token status. Buat transaksi baru untuk pengecekan aman.');
+    const data=await api('order_status',{transaction_id:o.transaction_id,status_token:o.status_token});
+    const d=data?.transaction||{};
+    const status=String(d?.status||'').toLowerCase();
+    if(status){
+      o.status=status; o.accounts=d?.accounts||[];
+      if(d?.total!=null||d?.total_to_pay!=null)o.total=Number(d?.total??d?.total_to_pay);
+      saveLocalOrder(o);
+    }
+    const statusEl=$('#invoiceStatus'); if(statusEl)statusEl.textContent=status==='success'?'Selesai':status==='fail'?'Gagal':'Menunggu';
+    if(status==='success'){clearInterval(timer);timer=null;showSuccess(o,d?.accounts||[]);}
+    else if(status==='fail'){clearInterval(timer);timer=null;toast('Pembayaran gagal atau dibatalkan.',true);}
+  }catch(e){
+    if(String(e.message||'').toLowerCase().includes('token')){if(timer){clearInterval(timer);timer=null;}toast(e.message,true);}
+  }
 }
 function showSuccess(o, accountsOverride){
   if(timer){clearInterval(timer);timer=null;}
@@ -288,7 +310,7 @@ async function renderRoute(){
   if(h==='#/isi-saldo'){renderTopup();return;}
   if(h==='#/sukses'){ const o=orders()[0]; if(o)showSuccess(o); else renderOrders(); return; }
   if(/^#\/pesanan/.test(h)){renderOrders();return;}
-  if(!state.catalogLoaded) await loadCatalog(); else drawGrid();
+  await loadCatalog();
 }
 window.addEventListener('hashchange',renderRoute);
 window.addEventListener('beforeunload',()=>{if(timer)clearInterval(timer);});
