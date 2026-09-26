@@ -1,23 +1,50 @@
 # Integration review — Xoftware API coverage
 
-Checked against the supplied Xoftware Order v1.1.0, Product v1.0.0 and Reseller H2H v1.0.0 documentation.
+Basis: Xoftware Order API v1.1.0, Product Management v1.0.0, dan Reseller H2H v1.0.0.
 
-## Covered
+## Status
 
-- Order: product, register, balance GET/POST, order/balance, order/qris, order/status GET/POST, deposit, webhook receiver.
-- Reseller H2H: balance, product, order, order history pagination, order status by reff_id.
-- Product Management: forms, product list/detail/create/update/delete, variation create/get/update/delete, stock add/list/delete.
+PASS untuk static syntax + mocked gateway integration tests.
 
-## Important constraints preserved
+Commands:
 
-- Product management pagination max 20.
-- Stock injection max 100 per request is left to upstream validation and is documented in the README.
-- Variation max 30 is left to upstream validation and is documented in the README.
-- Reseller order requires numeric stock_id and quantity >= 1; variation_id is forwarded only when supplied.
-- Order API deposit amount validation follows the supplied documented range 1,000–1,000,000.
-- No arbitrary URL proxying.
-- Xoftware API key never reaches browser code.
+```bash
+node --check api/xo.js
+node --check assets/xshop.js
+node tests/gateway.test.js
+```
 
-## Vercel networking review
+## Fix kritis
 
-The Reseller H2H documentation requires source IP whitelist. Current Vercel docs state normal outbound IPs are dynamic; Static IPs are available for Vercel Pro/Enterprise, while current custom container images do not support Static IPs. This package therefore uses a normal Vercel Node.js Function instead of a custom PHP container for the API gateway.
+1. **Reseller H2H public-spend vulnerability ditutup.** `reseller_order` sekarang admin-only dan storefront tidak lagi menganggap order reseller sebagai checkout customer.
+2. **`order/balance` admin-only.** Endpoint yang langsung memakai saldo tidak tersedia anonim.
+3. **Variation SKU fix.** Storefront mengirim `variation.code` untuk varian terpilih, fallback ke `product.code` hanya bila produk non-variasi/varian tidak punya kode.
+4. **Status privacy hardening.** Checkout QRIS/deposit menghasilkan `status_token` HMAC. Public `order_status` menolak request yang hanya mengetahui `transaction_id`.
+5. **Deposit history fix.** Deposit pending membuka invoice lagi, bukan langsung halaman sukses.
+6. **Order status total fix.** Parser mengikuti field `total` dari dokumentasi status QRIS.
+7. **Catalog route fix.** Navigasi kembali ke root merender ulang katalog.
+8. **Product Management coverage nyata.** Semua route yang didokumentasikan sekarang ada di gateway.
+9. **Stock batching.** Gateway memecah `accounts` menjadi request maksimal 100 item.
+
+## Mock scenarios yang lulus
+
+- Init katalog owner + reseller.
+- Normalisasi variation code dan `stock_count`.
+- QRIS checkout dengan SKU legacy ber-underscore.
+- Signed status token valid/invalid.
+- Reseller order ditolak tanpa admin password.
+- Reseller order berhasil diteruskan dengan admin password.
+- `pm_stock_add` 205 akun -> batch 100/100/5.
+- `pm_product_create` 205 stok -> 100 initial + 100/5 follow-up.
+- `pm_variation_create` 205 stok -> 100 initial + 100/5 follow-up.
+- Reseller balance POST.
+
+## Belum dapat dites tanpa kredensial produksi
+
+- Respons real Xoftware terhadap API key milik pengguna.
+- IP whitelist deployment aktual.
+- QRIS real payment lifecycle.
+- Webhook delivery real dari Xoftware.
+- Bentuk variation object real pada katalog akun pengguna jika berbeda dari dokumentasi.
+
+Tidak ada kredensial produksi yang ditanam di repository.
