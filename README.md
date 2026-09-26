@@ -1,171 +1,162 @@
-# VanzShop.com × Xoftware — Vercel No-DB (Hardened)
+# VanzShop.com × Xoftware — v4 Hardened
 
-Storefront statis + Vercel Node.js Function untuk integrasi resmi Xoftware.
+Storefront statis + Vercel Node.js Function untuk Xoftware Order API, Product Management API, dan Reseller API.
 
-## Yang sudah dibetulkan
+## Perubahan v4
 
-- Base URL produksi Xoftware di-hardcode ke `https://backend-s2.xoftware.id`.
-- Semua endpoint memakai header server-side `x-api-key`; API key tidak pernah dikirim ke browser.
-- Checkout QRIS publik memakai **Order API**.
-- Checkout sekarang meminta **nomor WhatsApp pembeli** sebagai `sender`, sesuai field identitas yang dipakai Order API. Format `08`, `+62`, dan `62` dinormalisasi otomatis.
-- Jika Xoftware membalas **"User not found"**, gateway mencoba `/v1/register` lalu mengulang checkout/deposit. Jika bot membalas **"API Registration is disabled"**, gateway menampilkan pesan yang jelas karena izin tersebut memang harus diaktifkan di sisi Xoftware atau sender harus sudah terdaftar.
-- Email storefront sekarang opsional; email bukan identitas `sender` Xoftware.
-- Fallback visual produk memakai artwork SVG lokal berdasarkan nama brand sehingga tetap tampil di dark/light theme walau API tidak menyediakan URL gambar.
-- SKU variasi yang dipilih sekarang benar-benar dikirim saat checkout (`variation.code`, fallback ke `product.code`).
-- Status transaksi publik memakai HMAC `status_token`, jadi `transaction_id` saja tidak cukup untuk membaca payload akun.
-- Klik riwayat **deposit** sekarang kembali ke halaman pembayaran, bukan langsung dianggap sukses.
-- Total status mengikuti field dokumentasi `total` (dengan fallback `total_to_pay`).
-- Navigasi kembali ke katalog selalu membangun ulang halaman katalog dengan benar.
-- **Reseller H2H tidak lagi bisa dibeli gratis dari storefront.** Endpoint reseller memakai `reseller_saldo` toko dan sekarang hanya bisa dipanggil dengan password admin.
-- `order/balance` juga admin-only karena endpoint tersebut langsung menghabiskan saldo user Xoftware.
-- Product Management benar-benar diimplementasikan: forms, CRUD produk, CRUD variasi, tambah/list/hapus stok.
-- Penambahan stok >100 akun otomatis dipecah menjadi batch 100 sesuai limit Xoftware.
-- Create produk/variasi dengan >100 stok mengirim 100 pertama saat create lalu melanjutkan batch stok otomatis.
-- Limit pagination Product Management dikunci maksimal 20, stok maksimal 100 per halaman, reseller history maksimal 100.
+### 1. Registrasi user sebelum checkout
 
-## Environment Variables
+Flow storefront sekarang mengikuti dokumentasi Xoftware secara literal:
 
-Wajib untuk storefront:
+1. Pembeli menyimpan identitas user di menu **Akun**.
+2. `sender` hanya menggunakan jenis yang didokumentasikan Xoftware:
+   - nomor WhatsApp, atau
+   - Telegram ID.
+3. Website mengecek user dengan `POST /v1/balance`.
+4. Jika user belum ditemukan, gateway mencoba `POST /v1/register` dengan `sender` + `name`.
+5. Jika API Registration dinonaktifkan di bot Xoftware, checkout dihentikan. Kode **tidak** mengganti sender pembeli dengan sender toko secara diam-diam.
+6. Setelah user valid/terdaftar, checkout QRIS dikirim ke `POST /v1/order/qris` dengan sender user tersebut.
+
+> Dokumentasi Xoftware menyatakan endpoint register memerlukan aktivasi izin khusus pada tingkat penyedia layanan. Jika muncul `API Registration is disabled for this bot`, izin tersebut harus diaktifkan atau user harus didaftarkan melalui alur resmi Xoftware sebelum checkout.
+
+Email hanya informasi lokal/opsional di storefront. Dokumentasi Order API tidak mendefinisikan email sebagai nilai `sender`.
+
+### 2. Gambar produk
+
+- Reseller API mendokumentasikan field `thumbnail`, jadi thumbnail upstream digunakan jika ada.
+- Order API untuk katalog owner tidak mendokumentasikan field image/thumbnail.
+- Karena itu owner product memakai asset fallback lokal di `assets/brands/*.svg`.
+- Tidak lagi bergantung ke CDN logo eksternal untuk fallback utama.
+- Jika upstream benar-benar mengirim URL gambar valid, gambar upstream tetap diprioritaskan.
+
+### 3. Dashboard admin
+
+Buka:
+
+```text
+https://domain-kamu/#/admin
+```
+
+Login menggunakan `ADMIN_PASSWORD`.
+
+Dashboard menyediakan:
+
+- status konfigurasi API,
+- register/check user Xoftware,
+- list/create/update/delete produk,
+- tambah/list/delete stok,
+- cek saldo dan riwayat Reseller API,
+- preview theme/style,
+- generator environment variables untuk konfigurasi global Vercel.
+
+Project tetap **no database**. Perubahan tampilan dari dashboard disimpan sebagai preview lokal di browser. Untuk menerapkan theme ke semua visitor, gunakan ENV hasil generator dashboard di Vercel lalu redeploy.
+
+## Environment variables
+
+### Wajib
 
 ```text
 XSOFTWARE_API_KEY=YOUR_REAL_XOFTWARE_API_KEY
+ADMIN_PASSWORD=PASSWORD_ADMIN_PANJANG_DAN_UNIK
 ```
 
-Tambahkan ini hanya kalau endpoint admin mau dipakai:
+### Opsional
 
 ```text
-ADMIN_PASSWORD=PASSWORD_ADMIN_YANG_PANJANG_DAN_UNIK
-```
-
-Opsional:
-
-```text
-STORE_NAME=VanzShop.com
-STORE_TAGLINE=Produk digital pilihan, stok live, checkout otomatis.
+XSOFTWARE_DEFAULT_SENDER=
 XSOFTWARE_DEFAULT_NAME=VanzShop.com
-XSOFTWARE_DEFAULT_SENDER=628xxxxxxxxxx
 XSOFTWARE_TIMEOUT=25000
 CATALOG_SOURCE=owner
 ```
 
-> `XSOFTWARE_DEFAULT_SENDER` sekarang fallback opsional. Storefront meminta WhatsApp pembeli langsung. Jika API Registration bot dinonaktifkan, gateway akan mencoba sender default ini **tanpa register**; jadi isi dengan nomor/ID yang memang sudah terdaftar di Xoftware. Jika sender default juga belum terdaftar, aktivasi API Registration tetap diperlukan.
+`XSOFTWARE_DEFAULT_SENDER` tidak digunakan sebagai fallback checkout publik. Field ini hanya default untuk beberapa operasi admin.
 
-`CATALOG_SOURCE`:
-
-- `owner` — default dan paling aman untuk storefront QRIS.
-- `reseller` — menampilkan katalog partner, tetapi checkout publik tetap dinonaktifkan.
-- `merged` — menampilkan owner + reseller; item reseller tetap tidak dapat langsung menghabiskan saldo toko dari browser.
-
-> API key **jangan** di-hardcode ke `assets/xshop.js`, HTML, repository publik, atau environment variable yang diawali `NEXT_PUBLIC_`/sejenis. Base URL dan route boleh hardcoded; secret tidak.
-
-## Endpoint gateway
-
-Semua request masuk ke `/api/xo?a=ACTION`.
-
-### Public storefront
-
-| Action | Method | Fungsi |
-|---|---|---|
-| `health` | GET | Health/config state tanpa secret |
-| `init` | GET | Katalog sesuai `CATALOG_SOURCE` |
-| `owner_product` | GET | Detail item owner dari katalog Order API |
-| `reseller_product` | GET | Detail item reseller (read-only) |
-| `checkout_qris` | POST | Buat invoice QRIS Order API |
-| `deposit` | POST | Buat invoice top-up saldo |
-| `order_status` | GET/POST | Cek status dengan `transaction_id` + `status_token` |
-| `webhook` | POST | Receiver/ack callback; tidak menyimpan state |
-
-### Admin-only — Order API
-
-Header wajib:
+### Identitas toko
 
 ```text
-X-Admin-Password: <ADMIN_PASSWORD>
+STORE_NAME=VanzShop.com
+STORE_TAGLINE=Produk digital pilihan, stok live, checkout otomatis.
+STORE_WHATSAPP=
+STORE_TELEGRAM=
+STORE_EMAIL=
 ```
 
-| Action | Method | Fungsi |
-|---|---|---|
-| `owner_register` | POST | `/v1/register` |
-| `owner_balance` | GET/POST | `/v1/balance` |
-| `checkout_balance` | POST | `/v1/order/balance` — langsung memakai saldo |
+Kontak boleh dikosongkan. Jangan isi data palsu.
 
-### Admin-only — Reseller H2H
+### Tampilan global
 
-| Action | Method | Fungsi |
-|---|---|---|
-| `reseller_balance` | GET/POST | Cek `reseller_saldo` |
-| `reseller_order` | POST | Order instan, memotong `reseller_saldo` |
-| `reseller_orders` | GET | Riwayat order (`page`, `limit<=100`) |
-| `reseller_status` | GET | Status by `reff_id` |
-
-### Admin-only — Product Management
-
-| Action | Method | Parameter utama |
-|---|---|---|
-| `pm_forms` | GET | - |
-| `pm_products` | GET | `page`, `limit<=20`, `search`, `is_variation` |
-| `pm_product` | GET | `id` |
-| `pm_product_create` | POST | body produk |
-| `pm_product_update` | PUT/POST | `id` + body update |
-| `pm_product_delete` | DELETE/POST | `id` |
-| `pm_variation_create` | POST | `product_id` + body variasi |
-| `pm_variation` | GET | `id` |
-| `pm_variation_update` | PUT/POST | `id` + body update |
-| `pm_variation_delete` | DELETE/POST | `id` |
-| `pm_stock_add` | POST | `product_id`, optional `variation_id`, `accounts[]` |
-| `pm_stocks` | GET | `product_id`, optional `variation_id`, `page`, `limit<=100` |
-| `pm_stock_delete` | DELETE/POST | `id` stok |
-
-## Contoh request
-
-Checkout QRIS dari storefront/server sendiri:
-
-```bash
-curl -X POST 'https://DOMAIN-KAMU.vercel.app/api/xo?a=checkout_qris' \
-  -H 'Content-Type: application/json' \
-  -d '{"code":"NETFLIX-1M","quantity":1,"email":"buyer@example.com"}'
+```text
+STORE_THEME=dark
+STORE_ACCENT=#f3c74f
+STORE_RADIUS=20
+STORE_COLUMNS=5
+STORE_DENSITY=compact
+STORE_HERO=true
 ```
 
-Cek reseller saldo sebagai admin:
+## API Xoftware yang digunakan
 
-```bash
-curl 'https://DOMAIN-KAMU.vercel.app/api/xo?a=reseller_balance' \
-  -H 'X-Admin-Password: PASSWORD_ADMIN_KAMU'
+Base URL hardcoded server-side:
+
+```text
+https://backend-s2.xoftware.id
 ```
 
-Tambah 250 akun stok (gateway otomatis batching 100 + 100 + 50):
+Semua request upstream memakai header:
 
-```bash
-curl -X POST 'https://DOMAIN-KAMU.vercel.app/api/xo?a=pm_stock_add' \
-  -H 'Content-Type: application/json' \
-  -H 'X-Admin-Password: PASSWORD_ADMIN_KAMU' \
-  -d '{"product_id":105,"accounts":["email1|pass1","email2|pass2"]}'
+```text
+x-api-key: XSOFTWARE_API_KEY
+Content-Type: application/json
 ```
 
-## Catatan penting Reseller H2H
+### Order API
 
-Dokumentasi Xoftware menyatakan:
+| Fungsi | Endpoint |
+|---|---|
+| katalog | `/v1/product` |
+| register user | `/v1/register` |
+| cek user/saldo | `/v1/balance` |
+| order saldo | `/v1/order/balance` |
+| order QRIS | `/v1/order/qris` |
+| status order | `/v1/order/status` |
+| deposit | `/v1/deposit` |
 
-- server pemanggil wajib masuk IP whitelist,
-- pembelian memotong `reseller_saldo`,
-- akun/stok dikirim realtime pada response order.
+### Product Management API
 
-Karena itu endpoint reseller **bukan payment gateway customer**. Untuk menjual produk partner ke publik, harus ada flow pembayaran customer terlebih dahulu dan order reseller baru dilakukan dari backend setelah pembayaran tervalidasi. Project ini sengaja tidak menganggap tombol publik sebagai izin untuk menghabiskan saldo reseller.
+Prefix `/v1/products`. Gateway mencakup forms, CRUD produk, CRUD variasi, dan stok.
 
-Jika whitelist IP Xoftware aktif, pastikan deployment memakai egress/static IP yang benar-benar dapat didaftarkan pada dashboard Xoftware.
+Hard limit yang diterapkan:
 
-## No database
+- produk maksimal 20 per page,
+- stok maksimal 100 per request,
+- stok >100 otomatis dibatch 100 + 100 + ...,
+- SKU 3–50 karakter, huruf/angka/dash,
+- variasi dikelola lewat endpoint resmi Xoftware.
 
-Riwayat invoice storefront hanya disimpan di `localStorage` browser. Tidak ada database server. Konsekuensinya:
+### Reseller API
 
-- pindah perangkat/browser tidak membawa riwayat,
-- clear storage menghapus riwayat lokal,
-- webhook hanya di-ack, bukan dipakai sebagai source of truth persisten,
-- fulfillment QRIS tetap diperoleh dengan polling status Xoftware memakai token lokal yang ditandatangani server.
+Prefix `/v1/reseller-api/`.
+
+Reseller order hanya admin-only karena dokumentasi menyatakan:
+
+- server harus masuk IP whitelist,
+- order langsung memotong `reseller_saldo`,
+- akun dikirim realtime pada response.
+
+Karena itu storefront publik **tidak** memakai `/reseller-api/order` sebagai payment customer.
+
+## Flow user storefront
+
+Menu **Akun** menyediakan:
+
+- WhatsApp: format `08xx`, `+62xx`, atau `62xx` dinormalisasi ke `62xx`.
+- Telegram: gunakan **Telegram ID** sesuai identitas yang diterima Xoftware, bukan email.
+- Nama: wajib untuk proses register jika user belum ada.
+- Email: opsional dan hanya disimpan di browser untuk metadata order lokal.
+
+Tidak ada endpoint login email/WhatsApp/Telegram yang didokumentasikan di Order API selain mekanisme `sender`, `/balance`, dan `/register`. Karena itu project tidak mengarang integrasi login lain.
 
 ## Test
-
-Jalankan:
 
 ```bash
 node --check api/xo.js
@@ -173,4 +164,15 @@ node --check assets/xshop.js
 node tests/gateway.test.js
 ```
 
-Test mock mencakup katalog owner/reseller, QRIS, HMAC status token, blokir reseller order tanpa admin, reseller order admin, serta batching stok 205 akun.
+Mock test mencakup:
+
+- response API-level `status:false` walaupun HTTP 200,
+- user existing,
+- auto-register user baru,
+- API Registration disabled,
+- checkout berhenti sebelum order jika user belum bisa diregister,
+- sender checkout harus sender pembeli (tidak fallback sender toko),
+- order status via POST,
+- admin password,
+- Reseller API admin-only,
+- batching stok 205 akun menjadi 100 + 100 + 5.
