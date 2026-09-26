@@ -7,7 +7,10 @@ Storefront statis + Vercel Node.js Function untuk integrasi resmi Xoftware.
 - Base URL produksi Xoftware di-hardcode ke `https://backend-s2.xoftware.id`.
 - Semua endpoint memakai header server-side `x-api-key`; API key tidak pernah dikirim ke browser.
 - Checkout QRIS publik memakai **Order API**.
-- Jika Xoftware membalas **"User not found"**, gateway sekarang otomatis mencoba mendaftarkan `XSOFTWARE_DEFAULT_SENDER` dulu lalu mengulang request checkout/deposit.
+- Checkout sekarang meminta **nomor WhatsApp pembeli** sebagai `sender`, sesuai field identitas yang dipakai Order API. Format `08`, `+62`, dan `62` dinormalisasi otomatis.
+- Jika Xoftware membalas **"User not found"**, gateway mencoba `/v1/register` lalu mengulang checkout/deposit. Jika bot membalas **"API Registration is disabled"**, gateway menampilkan pesan yang jelas karena izin tersebut memang harus diaktifkan di sisi Xoftware atau sender harus sudah terdaftar.
+- Email storefront sekarang opsional; email bukan identitas `sender` Xoftware.
+- Fallback visual produk memakai artwork SVG lokal berdasarkan nama brand sehingga tetap tampil di dark/light theme walau API tidak menyediakan URL gambar.
 - SKU variasi yang dipilih sekarang benar-benar dikirim saat checkout (`variation.code`, fallback ke `product.code`).
 - Status transaksi publik memakai HMAC `status_token`, jadi `transaction_id` saja tidak cukup untuk membaca payload akun.
 - Klik riwayat **deposit** sekarang kembali ke halaman pembayaran, bukan langsung dianggap sukses.
@@ -20,11 +23,17 @@ Storefront statis + Vercel Node.js Function untuk integrasi resmi Xoftware.
 - Create produk/variasi dengan >100 stok mengirim 100 pertama saat create lalu melanjutkan batch stok otomatis.
 - Limit pagination Product Management dikunci maksimal 20, stok maksimal 100 per halaman, reseller history maksimal 100.
 
-## Environment Variables wajib
+## Environment Variables
+
+Wajib untuk storefront:
 
 ```text
 XSOFTWARE_API_KEY=YOUR_REAL_XOFTWARE_API_KEY
-XSOFTWARE_DEFAULT_SENDER=628xxxxxxxxxx
+```
+
+Tambahkan ini hanya kalau endpoint admin mau dipakai:
+
+```text
 ADMIN_PASSWORD=PASSWORD_ADMIN_YANG_PANJANG_DAN_UNIK
 ```
 
@@ -34,11 +43,12 @@ Opsional:
 STORE_NAME=VanzShop.com
 STORE_TAGLINE=Produk digital pilihan, stok live, checkout otomatis.
 XSOFTWARE_DEFAULT_NAME=VanzShop.com
+XSOFTWARE_DEFAULT_SENDER=628xxxxxxxxxx
 XSOFTWARE_TIMEOUT=25000
 CATALOG_SOURCE=owner
 ```
 
-> `XSOFTWARE_DEFAULT_SENDER` harus diisi dengan nomor/ID identitas default untuk transaksi publik. Kalau user itu belum ada di Xoftware, gateway sekarang akan auto-register saat checkout/deposit pertama.
+> `XSOFTWARE_DEFAULT_SENDER` sekarang fallback opsional. Storefront meminta WhatsApp pembeli langsung. Jika API Registration bot dinonaktifkan, gateway akan mencoba sender default ini **tanpa register**; jadi isi dengan nomor/ID yang memang sudah terdaftar di Xoftware. Jika sender default juga belum terdaftar, aktivasi API Registration tetap diperlukan.
 
 `CATALOG_SOURCE`:
 

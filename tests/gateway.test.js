@@ -8,7 +8,7 @@ process.env.XSOFTWARE_DEFAULT_SENDER = '628123456789';
 process.env.CATALOG_SOURCE = 'merged';
 
 const calls = [];
-let requireRegistration = true;
+const registeredSenders = new Set(['628123456789']);
 function reply(status, body) {
   return {
     ok: status >= 200 && status < 300,
@@ -25,10 +25,14 @@ global.fetch = async (url, options = {}) => {
 
   if (u.pathname === '/v1/product') return reply(200, { status: true, data: [{ id: 1, title: 'Canva', is_variation: true, variations: [{ id: 11, code: 'CANVA-1Y', title: '1 Tahun', price: 25000, stock_count: 3 }] }] });
   if (u.pathname === '/v1/reseller-api/product') return reply(200, { code: 200, data: [{ id: 105, code: 'NFLX-1M', title: 'Netflix Partner', price: 28000, stock: 42 }] });
-  if (u.pathname === '/v1/register' && method === 'POST') { requireRegistration = false; return reply(200, { status: true, message: 'User registered successfully', data: { sender: body.sender, name: body.name } }); }
+  if (u.pathname === '/v1/register' && method === 'POST') {
+    if (body.sender === '6289999999999') return reply(403, { status: false, message: 'API Registration is disabled for this bot' });
+    registeredSenders.add(body.sender);
+    return reply(200, { status: true, message: 'User registered successfully', data: { sender: body.sender, name: body.name } });
+  }
   if (u.pathname === '/v1/order/qris' && method === 'POST') {
-    if (requireRegistration) return reply(404, { status: false, message: 'User not found' });
-    return reply(200, { status: true, data: { transaction_id: 'API-TEST123', amount: 25000, total_to_pay: 25700, qr_string: 'QRDATA', status: 'pending' } });
+    if (!registeredSenders.has(body.sender)) return reply(404, { status: false, message: 'User not found' });
+    return reply(200, { status: true, data: { transaction_id: `API-${body.sender.slice(-4)}`, amount: 25000, total_to_pay: 25700, qr_string: 'QRDATA', status: 'pending' } });
   }
   if (u.pathname === '/v1/order/status') return reply(200, { status: true, data: { transaction_id: u.searchParams.get('transaction_id'), status: 'success', total: 25700, accounts: [{ email: 'demo@example.com', pass: 'secret' }] } });
   if (u.pathname === '/v1/reseller-api/order' && method === 'POST') return reply(200, { code: 200, data: { id: 4821, reff_id: 'RAPI-TEST', total_price: 28000, accounts: [{ email: 'r@example.com', password: 'pw' }] } });
@@ -68,22 +72,30 @@ function invoke({ method = 'GET', query = {}, body = undefined, headers = {} } =
   assert.equal(r.body.data.owner_products[0].variations[0].stock, 3);
   assert.equal(r.body.data.reseller_products[0].public_checkout, 'disabled');
 
-  r = await invoke({ method: 'POST', query: { a: 'checkout_qris' }, body: { code: 'LEGACY_SKU_1', quantity: 1, email: 'buyer@example.com' } });
+  r = await invoke({ method: 'POST', query: { a: 'checkout_qris' }, body: { code: 'LEGACY_SKU_1', quantity: 1, sender: '081111111111', email: 'buyer@example.com' } });
   assert.equal(r.status, 200);
-  assert.equal(r.body.data.transaction.transaction_id, 'API-TEST123');
+  assert.equal(r.body.data.transaction.transaction_id, 'API-1111');
+  assert.equal(r.body.data.buyer_sender, '6281111111111');
   assert.match(r.body.data.status_token, /^[a-f0-9]{64}$/);
   const token = r.body.data.status_token;
   const registerCall = calls.find(x => x.path === '/v1/register');
-  assert.ok(registerCall, 'default sender should auto-register when upstream says user not found');
+  assert.ok(registerCall, 'buyer WhatsApp should auto-register when upstream says user not found');
+  assert.equal(registerCall.body.sender, '6281111111111');
   const qrisCalls = calls.filter(x => x.path === '/v1/order/qris');
   assert.equal(qrisCalls.length, 2);
-  assert.deepEqual(qrisCalls.at(-1).body, { sender: '628123456789', code: 'LEGACY_SKU_1', quantity: 1 });
+  assert.deepEqual(qrisCalls.at(-1).body, { sender: '6281111111111', code: 'LEGACY_SKU_1', quantity: 1 });
 
-  r = await invoke({ query: { a: 'order_status', transaction_id: 'API-TEST123', status_token: token } });
+  r = await invoke({ method: 'POST', query: { a: 'checkout_qris' }, body: { code: 'LEGACY_SKU_1', quantity: 1, sender: '089999999999' } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.data.sender_fallback, true);
+  assert.equal(r.body.data.upstream_sender, '628123456789');
+  assert.equal(r.body.data.transaction.transaction_id, 'API-6789');
+
+  r = await invoke({ query: { a: 'order_status', transaction_id: 'API-1111', status_token: token } });
   assert.equal(r.status, 200);
   assert.equal(r.body.data.transaction.status, 'success');
 
-  r = await invoke({ query: { a: 'order_status', transaction_id: 'API-TEST123', status_token: 'wrong' } });
+  r = await invoke({ query: { a: 'order_status', transaction_id: 'API-1111', status_token: 'wrong' } });
   assert.equal(r.status, 401);
 
   r = await invoke({ method: 'POST', query: { a: 'reseller_order' }, body: { stock_id: 105, quantity: 1 } });

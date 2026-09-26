@@ -57,6 +57,13 @@ function validId(v) { return /^\d+$/.test(str(v, 30)); }
 function validSku(v) { return /^[A-Za-z0-9-]{3,50}$/.test(str(v, 50)); }
 function validOrderCode(v) { return /^[A-Za-z0-9_-]{1,100}$/.test(str(v, 100)); }
 function isEmail(v) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || '').trim()); }
+function normalizeSender(v) {
+  let s = String(v || '').trim().replace(/[\s().-]+/g, '');
+  if (s.startsWith('+62')) s = `62${s.slice(3)}`;
+  else if (s.startsWith('08')) s = `628${s.slice(2)}`;
+  return s;
+}
+function validSender(v) { return /^62\d{7,17}$/.test(String(v || '')); }
 function bodyOf(req) { return req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {}; }
 function q(params, key, def = '') { return params?.[key] ?? def; }
 function method(req, name) { return String(req.method || '').toUpperCase() === name; }
@@ -112,17 +119,55 @@ function validateAccounts(accounts, max = 5000) {
   return cleaned;
 }
 
+function upstreamMessage(error) {
+  return `${error?.message || ''} ${JSON.stringify(error?.upstream || {})}`.toLowerCase();
+}
 function looksLikeMissingUser(error) {
-  const msg = `${error?.message || ''} ${JSON.stringify(error?.upstream || {})}`.toLowerCase();
+  const msg = upstreamMessage(error);
   return msg.includes('user not found') || msg.includes('sender not found') || msg.includes('not registered') || msg.includes('pengguna tidak ditemukan');
+}
+function looksLikeRegistrationDisabled(error) {
+  const msg = upstreamMessage(error);
+  return msg.includes('registration is disabled') || msg.includes('registration disabled') || msg.includes('registrasi') && msg.includes('disabled');
 }
 async function withAutoRegister(sender, fn, name = DEFAULT_NAME) {
   try {
     return await fn();
   } catch (error) {
     if (!sender || !looksLikeMissingUser(error)) throw error;
-    await xoFetch(ORDER.register, { method: 'POST', body: { sender, name } });
+    try {
+      await xoFetch(ORDER.register, { method: 'POST', body: { sender, name } });
+    } catch (registerError) {
+      if (looksLikeRegistrationDisabled(registerError)) {
+        const e = new Error('Nomor WhatsApp belum terdaftar dan API Registration pada bot Xoftware sedang dinonaktifkan. Aktifkan izin API Registration di Xoftware, atau gunakan nomor yang sudah terdaftar.');
+        e.status = 409;
+        throw e;
+      }
+      throw registerError;
+    }
     return await fn();
+  }
+}
+
+async function publicOrderWithSender(requestedSender, invoke) {
+  try {
+    const upstream = await withAutoRegister(requestedSender, () => invoke(requestedSender));
+    return { upstream, effectiveSender: requestedSender, senderFallback: false };
+  } catch (error) {
+    const fallback = normalizeSender(DEFAULT_SENDER);
+    const registrationBlocked = error?.status === 409 && /api registration/i.test(String(error?.message || ''));
+    if (!registrationBlocked || !validSender(fallback) || fallback === requestedSender) throw error;
+    try {
+      const upstream = await invoke(fallback);
+      return { upstream, effectiveSender: fallback, senderFallback: true };
+    } catch (fallbackError) {
+      if (looksLikeMissingUser(fallbackError)) {
+        const e = new Error('API Registration bot Xoftware sedang dinonaktifkan dan XSOFTWARE_DEFAULT_SENDER juga belum terdaftar. Daftarkan sender default lewat bot/dashboard Xoftware atau aktifkan izin API Registration.');
+        e.status = 409;
+        throw e;
+      }
+      throw fallbackError;
+    }
   }
 }
 
@@ -315,13 +360,15 @@ module.exports = async function handler(req, res) {
 
       case 'checkout_qris': {
         if (!method(req, 'POST')) return fail(res, 'Method tidak diizinkan.', 405);
-        if (!DEFAULT_SENDER) return fail(res, 'XSOFTWARE_DEFAULT_SENDER belum dikonfigurasi.', 503);
         const b = bodyOf(req);
         const code = str(b.code, 50);
         const quantity = int(b.quantity, 0);
         const email = str(b.email, 160).toLowerCase();
-        if (!validOrderCode(code) || quantity < 1 || !isEmail(email)) return fail(res, 'Data pembelian belum lengkap atau SKU tidak valid.');
-        const upstream = await withAutoRegister(DEFAULT_SENDER, () => xoFetch(ORDER.orderQris, { method: 'POST', body: { sender: DEFAULT_SENDER, code, quantity } }));
+        const sender = normalizeSender(b.sender || DEFAULT_SENDER);
+        if (!validOrderCode(code) || quantity < 1) return fail(res, 'SKU dan quantity pembelian tidak valid.');
+        if (!validSender(sender)) return fail(res, 'Nomor WhatsApp wajib valid. Gunakan format 08xx, +62xx, atau 62xx.');
+        if (email && !isEmail(email)) return fail(res, 'Email tidak valid.');
+        const { upstream, effectiveSender, senderFallback } = await publicOrderWithSender(sender, effective => xoFetch(ORDER.orderQris, { method: 'POST', body: { sender: effective, code, quantity } }));
         const transaction = ensureObject(upstream?.data || upstream);
         const transactionId = str(transaction.transaction_id, 160);
         if (!transactionId) return fail(res, 'Xoftware tidak mengembalikan transaction_id.', 502);
@@ -329,19 +376,23 @@ module.exports = async function handler(req, res) {
           transaction,
           status_token: signStatus(transactionId),
           buyer_email: email,
+          buyer_sender: sender,
+          upstream_sender: effectiveSender,
+          sender_fallback: senderFallback,
           message: upstream?.message || '',
         });
       }
 
       case 'deposit': {
         if (!method(req, 'POST')) return fail(res, 'Method tidak diizinkan.', 405);
-        if (!DEFAULT_SENDER) return fail(res, 'XSOFTWARE_DEFAULT_SENDER belum dikonfigurasi.', 503);
         const b = bodyOf(req);
         const amount = num(b.amount, 0);
         const email = str(b.email, 160).toLowerCase();
+        const sender = normalizeSender(b.sender || DEFAULT_SENDER);
         if (!Number.isInteger(amount) || amount < 1000 || amount > 1000000) return fail(res, 'Nominal isi saldo harus Rp1.000 sampai Rp1.000.000.');
+        if (!validSender(sender)) return fail(res, 'Nomor WhatsApp wajib valid. Gunakan format 08xx, +62xx, atau 62xx.');
         if (email && !isEmail(email)) return fail(res, 'Email tidak valid.');
-        const upstream = await withAutoRegister(DEFAULT_SENDER, () => xoFetch(ORDER.deposit, { method: 'POST', body: { sender: DEFAULT_SENDER, amount } }));
+        const { upstream, effectiveSender, senderFallback } = await publicOrderWithSender(sender, effective => xoFetch(ORDER.deposit, { method: 'POST', body: { sender: effective, amount } }));
         const transaction = ensureObject(upstream?.data || upstream);
         const transactionId = str(transaction.transaction_id, 160);
         if (!transactionId) return fail(res, 'Xoftware tidak mengembalikan transaction_id.', 502);
@@ -349,6 +400,9 @@ module.exports = async function handler(req, res) {
           transaction,
           status_token: signStatus(transactionId),
           buyer_email: email,
+          buyer_sender: sender,
+          upstream_sender: effectiveSender,
+          sender_fallback: senderFallback,
           message: upstream?.message || '',
         });
       }
@@ -369,17 +423,17 @@ module.exports = async function handler(req, res) {
         const ae = requireAdmin(req, res); if (ae) return ae;
         if (!method(req, 'POST')) return fail(res, 'Method tidak diizinkan.', 405);
         const b = bodyOf(req);
-        const sender = str(b.sender, 160);
+        const sender = normalizeSender(b.sender);
         const name = str(b.name || DEFAULT_NAME, 120);
-        if (!sender || !name) return fail(res, 'sender dan name wajib diisi.');
+        if (!validSender(sender) || !name) return fail(res, 'sender WhatsApp dan name wajib valid.');
         return ok(res, await xoFetch(ORDER.register, { method: 'POST', body: { sender, name } }));
       }
 
       case 'owner_balance': {
         const ae = requireAdmin(req, res); if (ae) return ae;
         const b = bodyOf(req);
-        const sender = str(q(req.query || {}, 'sender') || b.sender || DEFAULT_SENDER, 160);
-        if (!sender) return fail(res, 'sender wajib diisi.');
+        const sender = normalizeSender(q(req.query || {}, 'sender') || b.sender || DEFAULT_SENDER);
+        if (!validSender(sender)) return fail(res, 'sender WhatsApp wajib valid.');
         if (method(req, 'POST')) return ok(res, await withAutoRegister(sender, () => xoFetch(ORDER.balance, { method: 'POST', body: { sender } })));
         if (!method(req, 'GET')) return fail(res, 'Method tidak diizinkan.', 405);
         return ok(res, await withAutoRegister(sender, () => xoFetch(`${ORDER.balance}${buildQuery({ sender })}`)));
@@ -389,10 +443,10 @@ module.exports = async function handler(req, res) {
         const ae = requireAdmin(req, res); if (ae) return ae;
         if (!method(req, 'POST')) return fail(res, 'Method tidak diizinkan.', 405);
         const b = bodyOf(req);
-        const sender = str(b.sender || DEFAULT_SENDER, 160);
+        const sender = normalizeSender(b.sender || DEFAULT_SENDER);
         const code = str(b.code, 50);
         const quantity = int(b.quantity, 0);
-        if (!sender || !validOrderCode(code) || quantity < 1) return fail(res, 'sender, code, dan quantity wajib valid.');
+        if (!validSender(sender) || !validOrderCode(code) || quantity < 1) return fail(res, 'sender WhatsApp, code, dan quantity wajib valid.');
         return ok(res, await withAutoRegister(sender, () => xoFetch(ORDER.orderBalance, { method: 'POST', body: { sender, code, quantity } })));
       }
 

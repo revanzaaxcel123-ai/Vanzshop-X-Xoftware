@@ -26,11 +26,18 @@ node tests/gateway.test.js
 8. **Product Management coverage nyata.** Semua route yang didokumentasikan sekarang ada di gateway.
 9. **Stock batching.** Gateway memecah `accounts` menjadi request maksimal 100 item.
 
+10. **Buyer sender fix.** Checkout publik sekarang memakai nomor WhatsApp pembeli sebagai `sender`, menormalisasi `08/+62/62`, dan email menjadi opsional.
+11. **Registration-disabled fallback.** Jika registrasi API diblokir dan `XSOFTWARE_DEFAULT_SENDER` sudah terdaftar, gateway dapat memproses transaksi memakai sender fallback tersebut.
+12. **Reliable product artwork.** Storefront tidak lagi bergantung pada CDN logo; fallback artwork SVG lokal selalu tersedia jika API tidak memberi gambar atau URL gambar gagal dimuat.
+13. **Compact UI.** Grid desktop dibuat lebih padat dan detail produk memakai layout visual + info horizontal agar tidak terasa terlalu besar.
+
 ## Mock scenarios yang lulus
 
 - Init katalog owner + reseller.
 - Normalisasi variation code dan `stock_count`.
 - QRIS checkout dengan SKU legacy ber-underscore.
+- Normalisasi sender WhatsApp pembeli + auto-register.
+- Fallback ke sender default yang sudah terdaftar saat API Registration upstream dinonaktifkan.
 - Signed status token valid/invalid.
 - Reseller order ditolak tanpa admin password.
 - Reseller order berhasil diteruskan dengan admin password.
