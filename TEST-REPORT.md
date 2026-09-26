@@ -1,35 +1,26 @@
-# TEST REPORT — VanzShop × Xoftware v4
+# TEST REPORT — v5
 
-## Static checks
+Validated locally with Node syntax checks and mocked Xoftware responses.
 
-- `node --check api/xo.js` — PASS
-- `node --check assets/xshop.js` — PASS
+Passed scenarios:
 
-## Gateway mock integration
+- Existing user: `/v1/balance` succeeds and `/v1/register` is not called.
+- New WhatsApp user: sender normalized and registered before checkout.
+- Registration permission disabled: request stops with `REGISTRATION_DISABLED`; no order is sent.
+- Registration rate limit `429`: mapped to `REGISTRATION_RATE_LIMIT` with documented limit 3/minute.
+- Order API product with `is_reseller=true`: remains `public_checkout=qris` and is treated as a supplier product supported by Order API.
+- QRIS request uses customer sender + selected SKU + quantity.
+- Order status uses POST with signed local status token.
+- Product title >100 chars is rejected instead of silently truncated.
+- Stock batching of 205 accounts is sent as 100 + 100 + 5.
+- Admin password protection remains active for sensitive H2H/product-management actions.
 
-- Hardcoded base URL Xoftware — PASS
-- Catalog owner normalization — PASS
-- Reseller thumbnail passthrough — PASS
-- Store appearance config — PASS
-- WhatsApp normalization — PASS
-- Existing user checked via `/v1/balance` — PASS
-- Missing user registered via `/v1/register` — PASS
-- HTTP 200 + top-level `status:false` handled as API error — PASS
-- `API Registration is disabled for this bot` returns HTTP 409 / `REGISTRATION_DISABLED` — PASS
-- Checkout is blocked before `/v1/order/qris` when registration cannot be completed — PASS
-- Checkout uses buyer sender, never silent default-sender fallback — PASS
-- QRIS transaction token generated — PASS
-- `/v1/order/status` called via POST — PASS
-- Telegram ID path — PASS
-- Admin authentication — PASS
-- Reseller order blocked without admin password — PASS
-- Product stock batching 205 → 100 + 100 + 5 — PASS
+Commands:
 
-## UI architecture checks
+```bash
+node --check api/xo.js
+node --check assets/xshop.js
+node tests/gateway.test.js
+```
 
-- Owner products always have local SVG fallback art — PASS by code path
-- Upstream image/thumbnail overlays fallback only when available — PASS by code path
-- No SimpleIcons/CDN dependency for product fallback — PASS
-- Account registration page exists — PASS
-- Admin dashboard route `#/admin` exists — PASS
-- Theme/environment generator exists — PASS
+Result: **PASS**.

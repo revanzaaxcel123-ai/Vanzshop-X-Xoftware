@@ -15,6 +15,7 @@ const users = new Map([
   ['628111111111', { id: 1, sender: '628111111111', name: 'Existing User', saldo: 50000, level: 'BASIC' }],
 ]);
 let registrationEnabled = true;
+let registrationRateLimited = false;
 
 function reply(status, body) {
   return {
@@ -31,7 +32,7 @@ global.fetch = async (url, options = {}) => {
   calls.push({ path: u.pathname, query: Object.fromEntries(u.searchParams.entries()), method, body, headers: options.headers || {} });
 
   if (u.pathname === '/v1/product') {
-    return reply(200, { status: true, data: [{ id: 1, title: 'Canva', is_variation: true, variations: [{ id: 11, code: 'CANVA-1Y', title: '1 Tahun', price: 25000, stock_count: 3 }] }] });
+    return reply(200, { status: true, data: [{ id: 1, title: 'Canva Supplier', is_reseller: true, is_variation: true, variations: [{ id: 11, code: 'CANVA-1Y', title: '1 Tahun', price: 25000, stock_count: 3 }] }] });
   }
   if (u.pathname === '/v1/reseller-api/product') {
     return reply(200, { code: 200, data: [{ id: 105, code: 'NFLX-1M', title: 'Netflix Partner', thumbnail: 'https://example.com/n.jpg', price: 28000, stock: 42 }] });
@@ -42,6 +43,7 @@ global.fetch = async (url, options = {}) => {
   }
   if (u.pathname === '/v1/register' && method === 'POST') {
     if (!registrationEnabled) return reply(200, { status: false, message: 'API Registration is disabled for this bot' });
+    if (registrationRateLimited) return reply(429, { status: false, message: 'Too Many Requests' });
     const user = { id: users.size + 10, sender: String(body.sender), name: String(body.name), saldo: 0, level: 'BASIC' };
     users.set(user.sender, user);
     return reply(200, { status: true, message: 'User registered successfully', data: user });
@@ -94,10 +96,15 @@ function invoke({ method = 'GET', query = {}, body = undefined, headers = {} } =
   assert.equal(r.status, 200);
   assert.equal(r.body.data.base_url, 'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.registration.email_is_sender, false);
+  assert.equal(r.body.data.registration.max_per_minute, 3);
+  assert.equal(r.body.data.documented_limits.stock_accounts_per_request, 100);
+  assert.equal(r.body.data.order_api_reseller_products_supported, true);
 
   r = await invoke({ query: { a: 'init' } });
   assert.equal(r.status, 200);
   assert.equal(r.body.data.owner_products[0].variations[0].code, 'CANVA-1Y');
+  assert.equal(r.body.data.owner_products[0].is_reseller, true);
+  assert.equal(r.body.data.owner_products[0].public_checkout, 'qris');
   assert.equal(r.body.data.reseller_products[0].thumbnail, 'https://example.com/n.jpg');
   assert.equal(r.body.data.store.appearance.columns, 5);
 
@@ -146,6 +153,13 @@ function invoke({ method = 'GET', query = {}, body = undefined, headers = {} } =
   assert.equal(calls.filter(x => x.path === '/v1/order/qris').length, 0, 'checkout must stop before order if user cannot be registered');
   registrationEnabled = true;
 
+  registrationRateLimited = true;
+  r = await invoke({ method: 'POST', query: { a: 'customer_prepare' }, body: { channel: 'whatsapp', sender: '08444444444', name: 'Rate User' } });
+  assert.equal(r.status, 429);
+  assert.equal(r.body.details.reason, 'REGISTRATION_RATE_LIMIT');
+  assert.equal(r.body.details.limit_per_minute, 3);
+  registrationRateLimited = false;
+
   r = await invoke({ method: 'POST', query: { a: 'customer_prepare' }, body: { channel: 'telegram', sender: 'telegram-user-id', name: 'Telegram User' } });
   assert.equal(r.status, 200);
   assert.equal(r.body.data.sender, 'telegram-user-id');
@@ -159,6 +173,9 @@ function invoke({ method = 'GET', query = {}, body = undefined, headers = {} } =
   assert.equal(r.status, 401);
   r = await invoke({ method: 'POST', query: { a: 'reseller_order' }, headers: { 'x-admin-password': 'test-admin-password' }, body: { stock_id: 105, quantity: 1 } });
   assert.equal(r.status, 200);
+
+  r = await invoke({ method: 'POST', query: { a: 'pm_product_create' }, headers: { 'x-admin-password': 'test-admin-password' }, body: { code: 'ABC', title: 'X'.repeat(101), price: 1000 } });
+  assert.equal(r.status, 400);
 
   calls.length = 0;
   const accounts205 = Array.from({ length: 205 }, (_, i) => `user${i}@example.com|pw${i}`);

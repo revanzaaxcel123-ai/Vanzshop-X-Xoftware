@@ -1,3 +1,18 @@
+# VanzShop.com × Xoftware — v5 Verified Docs
+
+Versi ini dikunci mengikuti dokumentasi yang diberikan: Order API, Product Management, dan Syarat & Ketentuan API Xoftware. Tidak ada login email API yang dibuat-buat karena dokumentasi Order hanya mendefinisikan `sender` sebagai nomor WhatsApp atau ID Telegram.
+
+## Fakta penting dari dokumentasi
+
+- User baru dibuat lewat `POST /v1/register` dengan `sender` + `name`.
+- Fitur register **memerlukan aktivasi izin khusus di tingkat penyedia layanan**. Kalau Xoftware membalas `API Registration is disabled for this bot`, kode tidak dapat membypass izin tersebut.
+- Registrasi dibatasi **maksimal 3 per menit**; HTTP `429` ditangani dan ditampilkan jelas.
+- Checkout QRIS memakai `POST /v1/order/qris` dengan `sender`, `code`, `quantity`.
+- Produk dari supplier/provider yang muncul di Order API ditandai `is_reseller=true` dan **tetap didukung melalui Order API**. Storefront tidak lagi menganggap produk ini harus diblokir.
+- Endpoint `/v1/reseller-api/*` tetap diperlakukan terpisah sebagai H2H/admin karena order di jalur itu memakai `reseller_saldo`.
+- Deposit dibatasi Rp1.000–Rp1.000.000.
+- Product Management: stok 100 akun/request, maksimal 30 variasi/produk, 20 produk/page, judul 100 karakter, desc/snk 5.000 karakter, SKU 3–50 huruf/angka/dash.
+
 # VanzShop.com × Xoftware — v4 Hardened
 
 Storefront statis + Vercel Node.js Function untuk Xoftware Order API, Product Management API, dan Reseller API.

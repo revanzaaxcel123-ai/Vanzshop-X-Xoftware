@@ -43,6 +43,20 @@ const RESELLER = Object.freeze({
   orderStatus: '/v1/reseller-api/order/status',
 });
 const PRODUCTS = '/v1/products';
+const LIMITS = Object.freeze({
+  registration_per_minute: 3,
+  deposit_min: 1000,
+  deposit_max: 1000000,
+  stock_accounts_per_request: 100,
+  variations_per_product: 30,
+  products_per_page: 20,
+  stock_page_limit: 100,
+  title_max: 100,
+  description_max: 5000,
+  terms_max: 5000,
+  sku_min: 3,
+  sku_max: 50,
+});
 
 function send(res, status, body) {
   res.status(status).setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -160,6 +174,20 @@ function looksLikeRegistrationDisabled(error) {
   const msg = upstreamMessage(error);
   return msg.includes('registration is disabled') || msg.includes('registration disabled') || (msg.includes('registrasi') && msg.includes('disabled')) || (msg.includes('registrasi') && msg.includes('dinonaktifkan'));
 }
+function looksLikeRegistrationRateLimit(error) {
+  return Number(error?.status) === 429 || upstreamMessage(error).includes('too many requests');
+}
+function validateCatalogText(payload) {
+  if (payload.title !== undefined && String(payload.title).length > LIMITS.title_max) {
+    throw Object.assign(new Error(`title maksimal ${LIMITS.title_max} karakter.`), { status: 400 });
+  }
+  if (payload.desc !== undefined && String(payload.desc).length > LIMITS.description_max) {
+    throw Object.assign(new Error(`desc maksimal ${LIMITS.description_max} karakter.`), { status: 400 });
+  }
+  if (payload.snk !== undefined && String(payload.snk).length > LIMITS.terms_max) {
+    throw Object.assign(new Error(`snk maksimal ${LIMITS.terms_max} karakter.`), { status: 400 });
+  }
+}
 function publicUser(data) {
   const u = ensureObject(data);
   return {
@@ -187,9 +215,15 @@ async function ensureCustomerUser(sender, name) {
     return { state: 'registered', user: publicUser(registeredUser) };
   } catch (registerError) {
     if (looksLikeRegistrationDisabled(registerError)) {
-      const e = new Error('User Xoftware belum terdaftar dan fitur API Registration bot sedang dinonaktifkan. Aktifkan izin API Registration pada Xoftware atau daftarkan user lewat alur resmi Xoftware terlebih dahulu.');
+      const e = new Error('User belum terdaftar, tetapi izin API Registration Xoftware untuk bot ini sedang nonaktif. Izin tersebut harus diaktifkan di tingkat penyedia layanan atau user didaftarkan melalui alur resmi Xoftware.');
       e.status = 409;
       e.upstream = { reason: 'REGISTRATION_DISABLED', provider: registerError?.upstream || null };
+      throw e;
+    }
+    if (looksLikeRegistrationRateLimit(registerError)) {
+      const e = new Error(`Batas registrasi Xoftware tercapai: maksimal ${LIMITS.registration_per_minute} registrasi per menit. Tunggu sebentar lalu coba lagi.`);
+      e.status = 429;
+      e.upstream = { reason: 'REGISTRATION_RATE_LIMIT', limit_per_minute: LIMITS.registration_per_minute, provider: registerError?.upstream || null };
       throw e;
     }
     throw registerError;
@@ -271,6 +305,8 @@ function normalizeOwner(p) {
     discount: p?.discount ?? null,
     point: p?.point ?? null,
     sold: Number(p?.sold ?? 0),
+    is_reseller: Boolean(p?.is_reseller),
+    provider_type: p?.is_reseller ? 'supplier' : 'owner',
     stock: p?.stock == null ? (p?.stock_count == null ? null : Number(p.stock_count)) : Number(p.stock),
     description: p?.description ?? p?.desc ?? '',
     is_variation: Boolean(p?.is_variation),
@@ -343,7 +379,10 @@ module.exports = async function handler(req, res) {
         requires_provider_permission: true,
         supported_sender_types: ['whatsapp', 'telegram_id'],
         email_is_sender: false,
+        max_per_minute: LIMITS.registration_per_minute,
       },
+      documented_limits: LIMITS,
+      order_api_reseller_products_supported: true,
     });
   }
 
@@ -392,7 +431,10 @@ module.exports = async function handler(req, res) {
               api_permission_required_for_new_users: true,
               supported_sender_types: ['whatsapp', 'telegram_id'],
               email_is_sender: false,
+              max_per_minute: LIMITS.registration_per_minute,
             },
+            limits: LIMITS,
+            order_api_reseller_products_supported: true,
           },
           owner_products,
           reseller_products,
@@ -477,7 +519,7 @@ module.exports = async function handler(req, res) {
         const channel = str(b.channel || 'whatsapp', 20).toLowerCase();
         if (!['whatsapp', 'telegram'].includes(channel)) return fail(res, 'channel harus whatsapp atau telegram.');
         const sender = normalizeCustomerSender(b.sender, channel);
-        if (!Number.isInteger(amount) || amount < 1000 || amount > 1000000) return fail(res, 'Nominal isi saldo harus Rp1.000 sampai Rp1.000.000.');
+        if (!Number.isInteger(amount) || amount < LIMITS.deposit_min || amount > LIMITS.deposit_max) return fail(res, 'Nominal isi saldo harus Rp1.000 sampai Rp1.000.000.');
         if (!name) return fail(res, 'Nama pengguna wajib diisi sebelum deposit.');
         if (!validCustomerSender(sender, channel)) return fail(res, channel === 'telegram' ? 'Telegram ID tidak valid.' : 'Nomor WhatsApp tidak valid.');
         if (email && !isEmail(email)) return fail(res, 'Email tidak valid.');
@@ -618,7 +660,10 @@ module.exports = async function handler(req, res) {
         if (!method(req, 'POST')) return fail(res, 'Method tidak diizinkan.', 405);
         const b = bodyOf(req);
         const payload = pick(b, ['code', 'title', 'price', 'profit', 'desc', 'snk', 'form', 'is_variation', 'wholesale_tiers']);
-        payload.title = str(payload.title, 100);
+        validateCatalogText(payload);
+        payload.title = str(payload.title, LIMITS.title_max);
+        if (payload.desc !== undefined) payload.desc = str(payload.desc, LIMITS.description_max);
+        if (payload.snk !== undefined) payload.snk = str(payload.snk, LIMITS.terms_max);
         payload.is_variation = bool(payload.is_variation, false);
         if (!payload.title) return fail(res, 'title wajib diisi.');
         if (!payload.is_variation) {
@@ -650,8 +695,11 @@ module.exports = async function handler(req, res) {
         const b = bodyOf(req);
         const payload = pick(b, ['code', 'title', 'price', 'profit', 'desc', 'snk', 'form', 'is_variation', 'is_show', 'wholesale_tiers']);
         delete payload.id;
+        validateCatalogText(payload);
         if (payload.code !== undefined && !validSku(payload.code)) return fail(res, 'code wajib 3-50 karakter: huruf, angka, atau dash.');
-        if (payload.title !== undefined) payload.title = str(payload.title, 100);
+        if (payload.title !== undefined) payload.title = str(payload.title, LIMITS.title_max);
+        if (payload.desc !== undefined) payload.desc = str(payload.desc, LIMITS.description_max);
+        if (payload.snk !== undefined) payload.snk = str(payload.snk, LIMITS.terms_max);
         if (!Object.keys(payload).length) return fail(res, 'Tidak ada field produk yang diperbarui.');
         return ok(res, await xoFetch(`${PRODUCTS}/${Number(id)}`, { method: 'PUT', body: payload }));
       }
@@ -671,8 +719,11 @@ module.exports = async function handler(req, res) {
         const productId = str(q(req.query || {}, 'product_id') || b.product_id, 30);
         if (!validId(productId)) return fail(res, 'product_id tidak valid.');
         const payload = pick(b, ['code', 'title', 'price', 'profit', 'desc', 'snk', 'form']);
-        payload.code = str(payload.code, 50);
-        payload.title = str(payload.title, 100);
+        validateCatalogText(payload);
+        payload.code = str(payload.code, LIMITS.sku_max);
+        payload.title = str(payload.title, LIMITS.title_max);
+        if (payload.desc !== undefined) payload.desc = str(payload.desc, LIMITS.description_max);
+        if (payload.snk !== undefined) payload.snk = str(payload.snk, LIMITS.terms_max);
         if (!validSku(payload.code) || !payload.title || !Number.isFinite(Number(payload.price))) return fail(res, 'code, title, dan price varian wajib valid.');
         payload.price = Number(payload.price);
         const stocks = Array.isArray(b.stocks) ? validateAccounts(b.stocks) : [];
@@ -703,8 +754,11 @@ module.exports = async function handler(req, res) {
         if (!validId(id)) return fail(res, 'id variasi tidak valid.');
         const payload = pick(b, ['code', 'title', 'price', 'profit', 'desc', 'snk', 'form']);
         delete payload.id;
+        validateCatalogText(payload);
         if (payload.code !== undefined && !validSku(payload.code)) return fail(res, 'code variasi tidak valid.');
-        if (payload.title !== undefined) payload.title = str(payload.title, 100);
+        if (payload.title !== undefined) payload.title = str(payload.title, LIMITS.title_max);
+        if (payload.desc !== undefined) payload.desc = str(payload.desc, LIMITS.description_max);
+        if (payload.snk !== undefined) payload.snk = str(payload.snk, LIMITS.terms_max);
         if (!Object.keys(payload).length) return fail(res, 'Tidak ada field variasi yang diperbarui.');
         return ok(res, await xoFetch(`${PRODUCTS}/variations/${Number(id)}`, { method: 'PUT', body: payload }));
       }
