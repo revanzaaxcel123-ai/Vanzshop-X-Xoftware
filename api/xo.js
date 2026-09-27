@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const SewaPay = require('../lib/sewapay');
 const Fulfillment = require('../lib/fulfillment');
+const MetadataStore = require('../lib/fulfillment-store');
 
 // README.md is the source of truth for this gateway.
 const BASE_URL = 'https://backend-s2.xoftware.id';
@@ -20,7 +21,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v15-ANTIDOUBLE';
+const BUILD_ID = 'HARDMAX-v16-CATALOG-STUDIO';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
@@ -40,6 +41,7 @@ const SITE_THEME_RAW = String(process.env.STORE_SITE_THEME || '').trim().toLower
 const ADMIN_THEME_RAW = String(process.env.STORE_ADMIN_THEME || '').trim().toLowerCase();
 const STORE_ACCENT_RAW = String(process.env.STORE_ACCENT || '').trim().toLowerCase();
 const LEGACY_THEME = String(process.env.STORE_THEME || 'dark').trim().toLowerCase();
+const STORE_COLOR_MODE = String(process.env.STORE_COLOR_MODE || LEGACY_THEME).trim().toLowerCase();
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -51,6 +53,7 @@ const STORE = Object.freeze({
   },
   appearance: {
     theme: ['dark', 'light'].includes(LEGACY_THEME) ? LEGACY_THEME : 'dark',
+    color_mode: ['dark', 'light'].includes(STORE_COLOR_MODE) ? STORE_COLOR_MODE : 'dark',
     site_theme: SITE_THEME_KEYS.has(SITE_THEME_RAW) ? SITE_THEME_RAW : (LEGACY_THEME === 'light' ? 'pearl' : 'gold'),
     admin_theme: ADMIN_THEME_KEYS.has(ADMIN_THEME_RAW) ? ADMIN_THEME_RAW : (LEGACY_THEME === 'light' ? 'latte' : 'gold'),
     accent: /^#[0-9a-f]{6}$/i.test(STORE_ACCENT_RAW) ? STORE_ACCENT_RAW : '#f3c74f',
@@ -59,6 +62,7 @@ const STORE = Object.freeze({
     columns: Math.max(2, Math.min(6, parseInt(String(process.env.STORE_COLUMNS || 4), 10) || 4)),
     density: ['compact', 'comfortable'].includes(String(process.env.STORE_DENSITY || 'comfortable').toLowerCase()) ? String(process.env.STORE_DENSITY || 'comfortable').toLowerCase() : 'comfortable',
     hero: !['0','false','off','no'].includes(String(process.env.STORE_HERO || 'true').toLowerCase()),
+    banner_seconds: Math.max(2, Math.min(20, Number(process.env.STORE_BANNER_SECONDS || 4.2) || 4.2)),
   },
   branding: {
     mark: String(process.env.STORE_BRAND_MARK || 'V').trim().slice(0,2) || 'V',
@@ -228,9 +232,29 @@ async function xoFetch(path,{method='GET',body,headers={}}={}){
 }
 
 function maybeImage(p){
-  const candidates=[p?.thumbnail,p?.image,p?.img,p?.image_url,p?.imageUrl,p?.cover,p?.banner,p?.logo];
-  const x=candidates.find(v=>typeof v==='string'&&/^https?:\/\//i.test(v.trim()));
-  return x?x.trim():'';
+  const candidates=[
+    p?.thumbnail,p?.image,p?.img,p?.image_url,p?.imageUrl,p?.product_image,p?.productImage,p?.photo,p?.picture,p?.cover,p?.banner,p?.logo,
+    Array.isArray(p?.images)?p.images[0]:'',Array.isArray(p?.media)?p.media[0]:'',p?.media?.url,p?.media?.src,p?.asset?.url,p?.asset?.src
+  ];
+  for(const candidate of candidates){
+    const raw=typeof candidate==='string'?candidate:(candidate?.url||candidate?.src||'');
+    const value=String(raw||'').trim();
+    if(!value)continue;
+    if(/^https?:\/\//i.test(value))return value;
+    if(/^\/(?!\/)/.test(value)){try{return new URL(value,BASE_URL).href;}catch{}}
+  }
+  return '';
+}
+function positiveCatalogNumber(x,fields){
+  const values=fields.map(field=>Number(x?.[field])).filter(n=>Number.isFinite(n));
+  return values.find(n=>n>0)??values[0]??0;
+}
+function catalogPrice(x){return positiveCatalogNumber(x,['price','final_price','selling_price','sell_price','sale_price','harga','amount']);}
+function catalogProfit(x){return positiveCatalogNumber(x,['profit','margin','keuntungan']);}
+function productMinimumPrice(p){
+  const direct=catalogPrice(p); if(direct>0)return direct;
+  const prices=(Array.isArray(p?.variations)?p.variations:[]).map(catalogPrice).filter(n=>n>0);
+  return prices.length?Math.min(...prices):0;
 }
 function normalizeVariation(v){
   const x=object(v);
@@ -241,7 +265,8 @@ function normalizeVariation(v){
     code:String(x.code??''),
     title:String(x.title??x.name??'Varian'),
     name:String(x.name??x.title??'Varian'),
-    price:Number(x.price??0),
+    price:catalogPrice(x),
+    profit:catalogProfit(x),
     stock:rawStock==null?null:Number(rawStock),
     stock_count:rawStock==null?null:Number(rawStock),
   };
@@ -256,7 +281,8 @@ function normalizeOrderProduct(p){
     title:String(x.title??'Produk'),
     code:String(x.code??''),
     is_reseller:Boolean(x.is_reseller),
-    price:Number(x.price??0),
+    price:catalogPrice(x),
+    profit:catalogProfit(x),
     original_price:x.original_price==null?null:Number(x.original_price),
     discount:x.discount==null?null:Number(x.discount),
     point:x.point==null?null:Number(x.point),
@@ -268,6 +294,68 @@ function normalizeOrderProduct(p){
     thumbnail:maybeImage(x),
     public_checkout:'qris',
   };
+}
+const PRODUCT_MEDIA_KEY='catalog:product-media';
+function mediaFieldForProduct(p){
+  const id=p?.id??p?.product_id;
+  if(id!==null&&id!==undefined&&String(id)!=='')return `id:${String(id)}`;
+  const code=String(p?.code||'').trim().toUpperCase();
+  return code?`code:${code}`:'';
+}
+function parseMediaHash(raw){
+  const out={};
+  if(Array.isArray(raw))for(let i=0;i+1<raw.length;i+=2){try{out[String(raw[i])]=JSON.parse(String(raw[i+1]));}catch{}}
+  else if(raw&&typeof raw==='object')for(const [key,value] of Object.entries(raw)){try{out[key]=typeof value==='string'?JSON.parse(value):value;}catch{}}
+  return out;
+}
+async function productMediaMap(){
+  if(!MetadataStore.ready())return {};
+  try{return parseMediaHash(await MetadataStore.command(['HGETALL',MetadataStore.key(PRODUCT_MEDIA_KEY)]));}
+  catch(e){console.warn('[XOFTWARE] product media store unavailable:',e?.message||e);return {};}
+}
+function validProductImage(value){
+  const s=String(value||'').trim();
+  if(!s||s.length>200000)return false;
+  return /^https?:\/\/[^\s]+$/i.test(s)||/^data:image\/(?:jpeg|jpg|png|webp|avif);base64,[a-z0-9+/=]+$/i.test(s)||/^\/(?!\/)[^\s]+$/.test(s);
+}
+async function saveProductMedia({id,code,image_url}){
+  if(!MetadataStore.ready())throw Object.assign(new Error('Penyimpanan gambar membutuhkan UPSTASH_REDIS_REST_URL dan UPSTASH_REDIS_REST_TOKEN.'),{status:503});
+  const field=mediaFieldForProduct({id,code}); if(!field)throw Object.assign(new Error('ID atau SKU produk wajib ada.'),{status:400});
+  if(!validProductImage(image_url))throw Object.assign(new Error('Gambar harus berupa URL HTTPS/path lokal atau file JPG/PNG/WebP teroptimasi maksimal sekitar 145 KB.'),{status:400});
+  const record={image_url:String(image_url).trim(),product_id:id??null,code:str(code,LIMITS.sku_max),source:String(image_url).startsWith('data:image/')?'upload':'url',updated_at:new Date().toISOString()};
+  const args=['HSET',MetadataStore.key(PRODUCT_MEDIA_KEY),field,JSON.stringify(record)];
+  const codeField=String(code||'').trim()?`code:${String(code).trim().toUpperCase()}`:'';
+  if(codeField&&codeField!==field)args.push(codeField,JSON.stringify(record));
+  await MetadataStore.command(args); return record;
+}
+async function deleteProductMedia({id,code}){
+  if(!MetadataStore.ready())throw Object.assign(new Error('Penyimpanan gambar belum dikonfigurasi.'),{status:503});
+  const fields=[mediaFieldForProduct({id,code}),String(code||'').trim()?`code:${String(code).trim().toUpperCase()}`:''].filter(Boolean);
+  if(!fields.length)throw Object.assign(new Error('ID atau SKU produk wajib ada.'),{status:400});
+  await MetadataStore.command(['HDEL',MetadataStore.key(PRODUCT_MEDIA_KEY),...new Set(fields)]); return {removed:true};
+}
+async function applyProductMedia(products){
+  const map=await productMediaMap();
+  return products.map(product=>{
+    const keys=[mediaFieldForProduct(product),String(product.code||'').trim()?`code:${String(product.code).trim().toUpperCase()}`:''].filter(Boolean);
+    const media=keys.map(key=>map[key]).find(Boolean);
+    return media?.image_url?{...product,provider_thumbnail:product.thumbnail||'',thumbnail:media.image_url,media_source:media.source||'manual',media_updated_at:media.updated_at||null}:product;
+  });
+}
+function catalogMatch(product,catalog){
+  const id=String(product?.id??product?.product_id??''),code=String(product?.code||'').trim().toUpperCase(),title=String(product?.title||'').trim().toLowerCase();
+  return catalog.find(x=>(id&&String(x.id)===id)||(code&&String(x.code||'').trim().toUpperCase()===code)||(title&&String(x.title||'').trim().toLowerCase()===title));
+}
+function enrichManagedProduct(product,catalog){
+  const forwarded=catalogMatch(product,catalog); if(!forwarded)return {...product,storefront_price:productMinimumPrice(product),display_price:productMinimumPrice(product),price_source:'product-management'};
+  const storefrontPrice=productMinimumPrice(forwarded);
+  return {...product,storefront_price:storefrontPrice,display_price:storefrontPrice||productMinimumPrice(product),price_source:'forwarded-catalog',thumbnail:forwarded.thumbnail||maybeImage(product),provider_thumbnail:forwarded.provider_thumbnail||'',media_source:forwarded.media_source||'api',storefront_stock:forwarded.stock,storefront_variations:forwarded.variations||[]};
+}
+async function enrichManagedResponse(response){
+  let catalog=[]; try{catalog=(await fetchCatalog()).products;}catch{}
+  if(Array.isArray(response?.data?.products))return {...response,data:{...response.data,products:response.data.products.map(x=>enrichManagedProduct(x,catalog))}};
+  if(response?.data&&typeof response.data==='object')return {...response,data:enrichManagedProduct(response.data,catalog)};
+  return response;
 }
 function catalogSummary(products,methodUsed){
   let knownStock=0, unknownStock=0, supplierCount=0, variations=0;
@@ -286,7 +374,7 @@ async function fetchCatalog(){
       if(!Array.isArray(r?.data)){
         const e=new Error('Format katalog Xoftware tidak sesuai README: field data harus berupa array.'); e.status=502; e.upstream=r; throw e;
       }
-      const products=r.data.map(normalizeOrderProduct);
+      const products=await applyProductMedia(r.data.map(normalizeOrderProduct));
       return {products,summary:catalogSummary(products,attempt.method)};
     }catch(e){
       if(!firstError) firstError=e;
@@ -584,7 +672,8 @@ module.exports=async function handler(req,res){
       case 'admin_fulfillment_list': {
         if(requireAdmin(req,res)) return;
         const limit=clamp(q(req,'limit'),1,500,100);
-        return ok(res,{stats:await Fulfillment.fulfillmentStats(500),receipts:(await Fulfillment.listReceipts(limit)).map(Fulfillment.publicReceipt),engine:Fulfillment.status()});
+        const [stats,receipts,orders]=await Promise.all([Fulfillment.fulfillmentStats(500),Fulfillment.listReceipts(limit),Fulfillment.listOrders(limit)]);
+        return ok(res,{stats,receipts:receipts.map(Fulfillment.publicReceipt),orders,engine:Fulfillment.status()});
       }
       case 'admin_fulfillment_get': {
         if(requireAdmin(req,res)) return;
@@ -788,12 +877,12 @@ module.exports=async function handler(req,res){
         if(requireAdmin(req,res)) return;
         const page=clamp(q(req,'page'),1,1000000,1), limit=clamp(q(req,'limit'),1,LIMITS.product_page,LIMITS.product_page), search=str(q(req,'search'),200), raw=q(req,'is_variation','');
         const is_variation=raw===''?'':bool(raw);
-        return ok(res,await xoFetch(`${PRODUCTS}/${queryString({page,limit,search,is_variation})}`));
+        return ok(res,await enrichManagedResponse(await xoFetch(`${PRODUCTS}/${queryString({page,limit,search,is_variation})}`)));
       }
       case 'pm_product': {
         if(requireAdmin(req,res)) return;
         const id=str(q(req,'id'),30); if(!validId(id)) return fail(res,'id produk tidak valid.');
-        return ok(res,await xoFetch(`${PRODUCTS}/${Number(id)}`));
+        return ok(res,await enrichManagedResponse(await xoFetch(`${PRODUCTS}/${Number(id)}`)));
       }
       case 'pm_product_create': {
         if(requireAdmin(req,res)) return;
@@ -821,6 +910,19 @@ module.exports=async function handler(req,res){
         if(requireAdmin(req,res)) return;
         const b=bodyOf(req), id=str(q(req,'id')||b.id,30); if(!validId(id))return fail(res,'id produk tidak valid.');
         return ok(res,await xoFetch(`${PRODUCTS}/${Number(id)}`,{method:'DELETE'}));
+      }
+      case 'pm_product_media_set': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')&&!method(req,'PUT')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req),id=str(b.id,30),code=str(b.code,LIMITS.sku_max),image_url=String(b.image_url||'').trim();
+        if(id&&!validId(id))return fail(res,'id produk tidak valid.');
+        return ok(res,await saveProductMedia({id,code,image_url}));
+      }
+      case 'pm_product_media_delete': {
+        if(requireAdmin(req,res)) return;
+        const b=bodyOf(req),id=str(q(req,'id')||b.id,30),code=str(q(req,'code')||b.code,LIMITS.sku_max);
+        if(id&&!validId(id))return fail(res,'id produk tidak valid.');
+        return ok(res,await deleteProductMedia({id,code}));
       }
       case 'pm_variation': {
         if(requireAdmin(req,res)) return;

@@ -21,6 +21,8 @@ assert.match(js, /STORE_SITE_THEME=/);
 assert.match(js, /STORE_ADMIN_THEME=/);
 assert.match(api, /STORE_SITE_THEME/);
 assert.match(api, /STORE_ADMIN_THEME/);
+assert.match(api, /STORE_BANNER_SECONDS/);
+assert.match(api, /STORE_COLOR_MODE/);
 for (let i = 1; i <= 5; i += 1) {
   const banner = path.join(root, 'assets', 'banner', `banner${i}.jpg`);
   assert.ok(fs.existsSync(banner), `missing campaign banner ${i}`);
@@ -36,4 +38,5 @@ assert.ok(!adminNavigation.includes('Endpoint Lab'), 'technical API lab should n
 assert.ok(!adminNavigation.includes('Order API'), 'order API group should not appear in admin navigation');
 assert.match(adminNavigation, /Stok Masuk & Aktif/);
 assert.match(adminNavigation, /Stok Keluar/);
+assert.match(adminNavigation, /Rekap Produk/);
 console.log('PASS theme.test.js');

@@ -36,7 +36,7 @@ global.fetch=async(url,options={})=>{
   if(u.pathname==='/v1/order/balance'&&method==='POST')return reply(200,{status:true,data:{transaction_id:9001,total_price:12000,status:'success',accounts:[{value:'demo'}]}});
   if(u.pathname==='/v1/deposit'&&method==='POST')return reply(200,{status:true,data:{transaction_id:'DEP-1',amount:body.amount,total_to_pay:body.amount+500,status:'pending'}});
   if(u.pathname==='/v1/order/status'&&method==='POST')return reply(200,{status:true,data:{transaction_id:body.transaction_id,status:'success',total:25700,accounts:[{email:'a@b.c',pass:'x'}]}});
-  if(u.pathname==='/v1/products/'&&method==='GET')return reply(200,{code:200,message:'OK',data:{products:[{id:10,code:'ABC',title:'ABC',price:1000,stock_count:2,is_variation:false}],pagination:{page:1,limit:20,total:1,total_pages:1}}});
+  if(u.pathname==='/v1/products/'&&method==='GET')return reply(200,{code:200,message:'OK',data:{products:[{id:10,code:'ABC',title:'ABC',price:1000,stock_count:2,is_variation:false},{id:2,code:'CANVA',title:'Canva Supplier',price:0,stock_count:3,is_variation:true}],pagination:{page:1,limit:20,total:2,total_pages:1}}});
   if(u.pathname==='/v1/products/stocks'&&method==='POST')return reply(201,{code:201,data:{total_added:body.accounts.length,product_id:body.product_id,variation_id:body.variation_id??null}});
   if(u.pathname==='/v1/products/'&&method==='POST')return reply(201,{code:201,data:{product_id:108,code:body.code||'',title:body.title,is_variation:Boolean(body.is_variation)}});
   if(u.pathname==='/v1/products/108/variations'&&method==='POST')return reply(201,{code:201,data:{variation_id:45,code:body.code,title:body.title}});
@@ -59,7 +59,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v15-ANTIDOUBLE');
+  assert.equal(r.body.data.build,'HARDMAX-v16-CATALOG-STUDIO');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
@@ -136,6 +136,8 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.status,200); assert.equal(r.body.data.response.data.status,'success');
 
   r=await invoke({query:{a:'pm_products',page:1,limit:999},headers:{'x-admin-password':'test-admin'}}); assert.equal(r.status,200);
+  assert.equal(r.body.data.data.products[1].display_price,25000,'variation parent must use forwarded storefront price');
+  assert.equal(r.body.data.data.products[1].price_source,'forwarded-catalog');
   const listCall=calls.findLast(x=>x.path==='/v1/products/'&&x.method==='GET'); assert.equal(listCall.query.limit,'20');
 
   const accounts=Array.from({length:205},(_,i)=>`user${i}|pass${i}`); calls.length=0;

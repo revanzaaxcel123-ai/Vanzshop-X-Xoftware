@@ -8,8 +8,8 @@ const vercel = JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'))
 const js = fs.readFileSync(path.join(root,'assets','xshop.js'),'utf8');
 assert.equal(vercel.cleanUrls, true);
 assert.ok(fs.existsSync(path.join(root,'admin.html')));
-assert.ok(admin.includes('/assets/xshop.js?v=25'));
-assert.ok(js.includes("const BUILD_ID = 'HARDMAX-v15-ANTIDOUBLE';"));
+assert.ok(admin.includes('/assets/xshop.js?v=26'));
+assert.ok(js.includes("const BUILD_ID = 'HARDMAX-v16-CATALOG-STUDIO';"));
 assert.ok(js.includes("p==='/admin'||p.startsWith('/admin/')"));
 assert.ok(fs.existsSync(path.join(root,'lib','sewapay.js')));
 assert.ok(fs.existsSync(path.join(root,'lib','fulfillment.js')));

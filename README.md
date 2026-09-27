@@ -1,6 +1,21 @@
-# HARDMAX v15 — Reservation + Anti Double Delivery
+# HARDMAX v16 — Catalog Studio
 
-Build: `HARDMAX-v15-ANTIDOUBLE`
+Build: `HARDMAX-v16-CATALOG-STUDIO`
+
+V16 mempertahankan reservation/anti-double V15 dan menambahkan Catalog Studio: harga tabel admin direkonsiliasi dengan forward catalog `/v1/product`, editor produk + variasi terpadu, gambar produk otomatis/manual, rekap order, kontrol kecepatan banner, serta mode siang/malam.
+
+Gambar manual disimpan sebagai metadata katalog di Redis/Upstash yang sama dengan fulfillment. Upload browser dioptimasi menjadi JPG maksimal 900px sebelum dikirim. Jika provider mengirim `thumbnail`, `image`, `cover`, atau `media`, gambar tersebut dipakai otomatis; jika tidak ada, storefront memakai asset brand lokal.
+
+ENV tampilan tambahan:
+
+```text
+STORE_COLOR_MODE=dark
+STORE_BANNER_SECONDS=4.2
+```
+
+`STORE_BANNER_SECONDS` menerima nilai 2–20 detik. Perubahan ENV hanya aktif setelah deployment baru.
+
+## Reservation + Anti Double Delivery
 
 V15 menambah soft-reservation stock record **sebelum payment dibuat**, ownership per `stock_record_id`, lock Redis yang lebih kuat, release hold otomatis untuk payment cancel/failed, dan Fulfillment Ledger di admin. Detail teknis ada di `HARDMAX-V15-ANTI-DOUBLE.md`.
 
