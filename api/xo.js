@@ -7,6 +7,7 @@ const BASE_URL = 'https://backend-s2.xoftware.id';
 const API_KEY = String(process.env.XSOFTWARE_API_KEY || '').trim();
 const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '').trim();
 const TIMEOUT_MS = Math.max(5000, Math.min(60000, Number(process.env.XSOFTWARE_TIMEOUT || 25000)));
+const BUILD_ID = 'HARDMAX-v7';
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -257,7 +258,7 @@ module.exports=async function handler(req,res){
   const action=str(q(req,'a'),80);
 
   if(action==='health'){
-    return ok(res,{ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true});
+    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true});
   }
   if(action==='webhook'){
     if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -330,7 +331,62 @@ module.exports=async function handler(req,res){
       }
       case 'admin_ping': {
         if(requireAdmin(req,res)) return;
-        return ok(res,{authenticated:true,store:STORE.name,base_url:BASE_URL});
+        return ok(res,{authenticated:true,build:BUILD_ID,store:STORE.name,base_url:BASE_URL});
+      }
+
+      case 'diag_product': {
+        if(requireAdmin(req,res)) return;
+        let firstError = null;
+        for(const attempt of [{method:'GET'},{method:'POST',body:{}}]){
+          try{
+            const response = await xoFetch(ORDER.product, attempt);
+            const products = Array.isArray(response?.data) ? response.data.map(normalizeOrderProduct) : [];
+            return ok(res,{
+              request:{method:attempt.method,path:ORDER.product,body:attempt.body ?? null},
+              response,
+              normalized_summary:catalogSummary(products,attempt.method),
+              normalized_preview:products.slice(0,5),
+            });
+          }catch(e){
+            if(!firstError) firstError=e;
+            if([401,403].includes(Number(e?.status))) throw e;
+          }
+        }
+        throw firstError || Object.assign(new Error('Diagnostic /v1/product gagal.'),{status:502});
+      }
+      case 'diag_balance': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase(), sender=normalizeSender(b.sender,channel);
+        if(!['whatsapp','telegram'].includes(channel)||!validSender(sender,channel)) return fail(res,'sender diagnostic tidak valid.');
+        const response=await xoFetch(ORDER.balance,{method:'POST',body:{sender}});
+        return ok(res,{request:{method:'POST',path:ORDER.balance,body:{sender}},response});
+      }
+      case 'diag_register': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase(), sender=normalizeSender(b.sender,channel), name=str(b.name,120);
+        if(!['whatsapp','telegram'].includes(channel)||!validSender(sender,channel)||!name) return fail(res,'sender/name diagnostic tidak valid.');
+        const response=await xoFetch(ORDER.register,{method:'POST',body:{sender,name}});
+        return ok(res,{warning:'Endpoint ini membuat user baru dan terkena rate limit registrasi.',request:{method:'POST',path:ORDER.register,body:{sender,name}},response});
+      }
+      case 'diag_qris': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase(), sender=normalizeSender(b.sender,channel), code=str(b.code,100), quantity=int(b.quantity,0);
+        if(!['whatsapp','telegram'].includes(channel)||!validSender(sender,channel)||!validOrderCode(code)||quantity<1) return fail(res,'sender, code, atau quantity diagnostic tidak valid.');
+        const payload={sender,code,quantity};
+        const response=await xoFetch(ORDER.orderQris,{method:'POST',body:payload});
+        return ok(res,{warning:'Endpoint ini membuat invoice QRIS nyata.',request:{method:'POST',path:ORDER.orderQris,body:payload},response});
+      }
+      case 'diag_order_status': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), transaction_id=str(b.transaction_id,160);
+        if(!transaction_id) return fail(res,'transaction_id wajib diisi.');
+        const payload={transaction_id};
+        const response=await xoFetch(ORDER.orderStatus,{method:'POST',body:payload});
+        return ok(res,{request:{method:'POST',path:ORDER.orderStatus,body:payload},response});
       }
       case 'owner_register': {
         if(requireAdmin(req,res)) return;

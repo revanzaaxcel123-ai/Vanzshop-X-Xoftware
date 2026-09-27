@@ -57,6 +57,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
+  assert.equal(r.body.data.build,'HARDMAX-v7');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
@@ -99,6 +100,20 @@ function invoke({method='GET',query={},body,headers={}}={}){
 
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'wrong'}}); assert.equal(r.status,401);
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'test-admin'}}); assert.equal(r.status,200); assert.equal(r.body.data.summary.count,2);
+
+
+  calls.length=0;
+  r=await invoke({query:{a:'diag_product'},headers:{'x-admin-password':'test-admin'}});
+  assert.equal(r.status,200); assert.equal(r.body.data.request.path,'/v1/product'); assert.equal(r.body.data.normalized_summary.count,2);
+
+  r=await invoke({method:'POST',query:{a:'diag_balance'},headers:{'x-admin-password':'test-admin'},body:{channel:'whatsapp',sender:'08111111111'}});
+  assert.equal(r.status,200); assert.equal(r.body.data.request.body.sender,'628111111111'); assert.equal(r.body.data.response.data.sender,'628111111111');
+
+  r=await invoke({method:'POST',query:{a:'diag_qris'},headers:{'x-admin-password':'test-admin'},body:{channel:'whatsapp',sender:'08111111111',code:'NFLIX-1',quantity:1}});
+  assert.equal(r.status,200); assert.equal(r.body.data.request.path,'/v1/order/qris'); assert.equal(r.body.data.response.data.transaction_id,'API-TX1');
+
+  r=await invoke({method:'POST',query:{a:'diag_order_status'},headers:{'x-admin-password':'test-admin'},body:{transaction_id:'API-TX1'}});
+  assert.equal(r.status,200); assert.equal(r.body.data.response.data.status,'success');
 
   r=await invoke({query:{a:'pm_products',page:1,limit:999},headers:{'x-admin-password':'test-admin'}}); assert.equal(r.status,200);
   const listCall=calls.findLast(x=>x.path==='/v1/products/'&&x.method==='GET'); assert.equal(listCall.query.limit,'20');

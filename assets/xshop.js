@@ -4,6 +4,8 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
+const BUILD_ID = 'HARDMAX-v7';
+window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const emailOk = v => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v||'').trim());
@@ -321,14 +323,15 @@ function showSuccess(o,accountsOverride){
 
 function adminPass(){return sessionStorage.getItem('vanz_admin_password')||'';}
 function adminTabs(active){
-  const tabs=[['overview','Koneksi API'],['users','User'],['products','Produk'],['stock','Stok'],['appearance','Tampilan']];
+  const tabs=[['overview','Koneksi API'],['diagnostics','Diagnostik'],['users','User'],['products','Produk'],['stock','Stok'],['appearance','Tampilan']];
   return `<div class="admin-tabs">${tabs.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`;
 }
 async function renderAdmin(section='overview'){
   if(!adminPass())return renderAdminLogin();
-  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin</span><h1>Kontrol VanzShop</h1><p>Operasi produk/user langsung ke Xoftware. Pengaturan tampilan dapat dipreview dan diekspor ke env Vercel.</p></div><button class="btn" id="adminLogout">Keluar</button></div>${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></main>`,'admin');
+  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin · ${BUILD_ID}</span><h1>Kontrol VanzShop</h1><p>Operasi produk/user langsung ke Xoftware. Pengaturan tampilan dapat dipreview dan diekspor ke env Vercel.</p></div><button class="btn" id="adminLogout">Keluar</button></div>${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></main>`,'admin');
   $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_password');renderAdminLogin();};
   try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_password');toast(e.message,true);return renderAdminLogin();}
+  if(section==='diagnostics')return adminDiagnostics();
   if(section==='users')return adminUsers();
   if(section==='products')return adminProducts();
   if(section==='stock')return adminStock();
@@ -346,7 +349,7 @@ async function adminOverview(){
     const [h,c]=await Promise.all([api('health'),adminApi('catalog_probe')]);
     const m=c?.summary||{};
     box.innerHTML=`<div class="admin-grid">
-      <section class="admin-panel"><h2>Koneksi Xoftware</h2><div class="kv"><span>Base URL</span><b>${esc(h.base_url)}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Katalog publik</span><b>${esc(h.catalog_endpoint)}</b></div><div class="kv"><span>Method berhasil</span><b>${esc(m.method||'—')}</b></div></section>
+      <section class="admin-panel"><h2>Koneksi Xoftware</h2><div class="kv"><span>Build aktif</span><b>${esc(h.build||BUILD_ID)}</b></div><div class="kv"><span>Base URL</span><b>${esc(h.base_url)}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Katalog publik</span><b>${esc(h.catalog_endpoint)}</b></div><div class="kv"><span>Method berhasil</span><b>${esc(m.method||'—')}</b></div></section>
       <section class="admin-panel"><h2>Sinkron katalog</h2><div class="kv"><span>Produk</span><b>${esc(m.count??0)}</b></div><div class="kv"><span>Stok terhitung</span><b>${esc(m.known_stock_total??0)}</b></div><div class="kv"><span>Stok unknown</span><b>${esc(m.unknown_stock_products??0)}</b></div><div class="kv"><span>Supplier is_reseller</span><b>${esc(m.supplier_products??0)}</b></div></section>
       <section class="admin-panel wide"><div class="panel-title"><h2>Source of truth</h2><button id="probeAgain" class="btn btn-primary">Refresh /v1/product</button></div><p class="muted">Storefront hanya membaca katalog Order API yang terdokumentasi di README: <code>GET/POST /v1/product</code>. Produk supplier ditandai oleh field <code>is_reseller</code>. Endpoint <code>/v1/reseller-api/*</code> tidak dipakai karena detail kontraknya tidak ada di README project ini.</p><p class="muted">Manajemen katalog owner memakai <code>/v1/products</code>; stok aktif dapat dilihat lewat <code>/v1/products/:id/stocks</code>. Batas README: 20 produk/page, 100 stok/request, 30 variasi/produk.</p></section>
       <section class="admin-panel wide"><h2>Preview data normalisasi</h2><pre>${esc(JSON.stringify((c?.products||[]).slice(0,5),null,2))}</pre></section>
@@ -356,6 +359,39 @@ async function adminOverview(){
     box.innerHTML=`<div class="status-card bad"><b>Koneksi katalog gagal</b><span>${esc(e.message)}</span></div>`;
   }
 }
+
+function diagnosticError(e){
+  return {ok:false,message:String(e?.message||'Diagnostic gagal.'),status:Number(e?.status||0)||null,details:e?.details??null};
+}
+function diagnosticOutput(id,data,bad=false){
+  const el=$(`#${id}`); if(!el)return;
+  el.innerHTML=`<pre class="${bad?'diag-bad':''}">${esc(JSON.stringify(data,null,2))}</pre>`;
+}
+function adminDiagnostics(){
+  const p=profile()||{};
+  const defaultSku=String(state.owner?.[0]?.variations?.[0]?.code||state.owner?.[0]?.code||'');
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid diag-grid">
+    <section class="admin-panel wide"><div class="panel-title"><div><h2>Endpoint Diagnostic</h2><p class="muted">Tes request langsung dari Vercel ke endpoint README. API key tidak pernah ditampilkan. Register dan QRIS adalah aksi nyata — tombolnya meminta konfirmasi.</p></div><span class="build-chip">${BUILD_ID}</span></div></section>
+
+    <section class="admin-panel"><h2>1 · Katalog /v1/product</h2><p class="muted">Aman. Mencoba GET lalu fallback POST jika perlu.</p><button id="diagProduct" class="btn btn-primary">Test katalog</button><div id="diagProductOut" class="admin-result"></div></section>
+
+    <section class="admin-panel"><h2>2 · User /v1/balance</h2><label class="form-field"><span>Channel</span><select id="diagBalanceChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="diagBalanceSender" class="input big" value="${esc(p.sender||'')}" placeholder="628... / Telegram ID"></label><button id="diagBalance" class="btn">Test balance</button><div id="diagBalanceOut" class="admin-result"></div></section>
+
+    <section class="admin-panel"><h2>3 · Register /v1/register</h2><div class="diag-warning">MUTATING: membuat user baru dan terkena limit maksimal 3 registrasi/menit.</div><label class="form-field"><span>Channel</span><select id="diagRegisterChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender baru</span><input id="diagRegisterSender" class="input big" placeholder="628... / Telegram ID"></label><label class="form-field"><span>Nama</span><input id="diagRegisterName" class="input big" placeholder="Nama user test"></label><button id="diagRegister" class="btn danger">Test REGISTER nyata</button><div id="diagRegisterOut" class="admin-result"></div></section>
+
+    <section class="admin-panel"><h2>4 · QRIS /v1/order/qris</h2><div class="diag-warning">MUTATING: membuat invoice QRIS nyata. Gunakan sender yang sudah terdaftar.</div><label class="form-field"><span>Channel</span><select id="diagQrisChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="diagQrisSender" class="input big" value="${esc(p.sender||'')}" placeholder="Sender terdaftar"></label><label class="form-field"><span>SKU</span><input id="diagQrisCode" class="input big" value="${esc(defaultSku)}" placeholder="Kode produk/varian"></label><label class="form-field"><span>Quantity</span><input id="diagQrisQty" class="input big" type="number" min="1" value="1"></label><button id="diagQris" class="btn danger">Buat invoice test</button><div id="diagQrisOut" class="admin-result"></div></section>
+
+    <section class="admin-panel wide"><h2>5 · Status /v1/order/status</h2><div class="diag-inline"><input id="diagStatusId" class="input big" placeholder="transaction_id"><button id="diagStatus" class="btn">Test status</button></div><div id="diagStatusOut" class="admin-result"></div></section>
+  </div>`;
+
+  $('#diagProduct').onclick=async()=>{diagnosticOutput('diagProductOut',{running:true});try{diagnosticOutput('diagProductOut',await adminApi('diag_product'));}catch(e){diagnosticOutput('diagProductOut',diagnosticError(e),true);}};
+  $('#diagBalance').onclick=async()=>{diagnosticOutput('diagBalanceOut',{running:true});try{diagnosticOutput('diagBalanceOut',await adminApi('diag_balance',{method:'POST',body:{channel:$('#diagBalanceChannel').value,sender:$('#diagBalanceSender').value}}));}catch(e){diagnosticOutput('diagBalanceOut',diagnosticError(e),true);}};
+  $('#diagRegister').onclick=async()=>{if(!confirm('Ini akan benar-benar memanggil /v1/register dan dapat membuat user baru. Lanjutkan?'))return;diagnosticOutput('diagRegisterOut',{running:true});try{diagnosticOutput('diagRegisterOut',await adminApi('diag_register',{method:'POST',body:{channel:$('#diagRegisterChannel').value,sender:$('#diagRegisterSender').value,name:$('#diagRegisterName').value}}));}catch(e){diagnosticOutput('diagRegisterOut',diagnosticError(e),true);}};
+  $('#diagQris').onclick=async()=>{if(!confirm('Ini akan benar-benar membuat invoice QRIS di Xoftware. Lanjutkan?'))return;diagnosticOutput('diagQrisOut',{running:true});try{diagnosticOutput('diagQrisOut',await adminApi('diag_qris',{method:'POST',body:{channel:$('#diagQrisChannel').value,sender:$('#diagQrisSender').value,code:$('#diagQrisCode').value,quantity:Number($('#diagQrisQty').value||1)}}));}catch(e){diagnosticOutput('diagQrisOut',diagnosticError(e),true);}};
+  $('#diagStatus').onclick=async()=>{diagnosticOutput('diagStatusOut',{running:true});try{diagnosticOutput('diagStatusOut',await adminApi('diag_order_status',{method:'POST',body:{transaction_id:$('#diagStatusId').value}}));}catch(e){diagnosticOutput('diagStatusOut',diagnosticError(e),true);}};
+}
+
 function adminUsers(){
   const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Register user</h2><label class="form-field"><span>Channel</span><select id="auChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="auSender" class="input big" placeholder="08... / Telegram ID"></label><label class="form-field"><span>Nama</span><input id="auName" class="input big" placeholder="Nama user"></label><button id="auRegister" class="btn btn-primary">Register ke Xoftware</button></section><section class="admin-panel"><h2>Cek user / saldo</h2><label class="form-field"><span>Sender</span><input id="auCheckSender" class="input big" placeholder="Sender terdaftar"></label><button id="auCheck" class="btn">Cek /v1/balance</button><div id="auResult" class="admin-result"></div></section></div>`;
   $('#auRegister').onclick=async()=>{try{const channel=$('#auChannel').value,raw=$('#auSender').value,sender=channel==='whatsapp'?phoneNormalize(raw):String(raw).trim(),name=$('#auName').value.trim();const r=await adminApi('owner_register',{method:'POST',body:{channel,sender,name}});toast(r?.message||'User berhasil diregistrasi.');}catch(e){toast(e.message,true);}};
@@ -388,14 +424,23 @@ async function ensureInit(){
   if(state.catalogLoaded)return;
   try{const d=await api('init');state.owner=Array.isArray(d.products)?d.products:[];state.catalogSummary=d.catalog||null;state.store=mergeStore(d.store||DEFAULT_STORE);state.catalogLoaded=true;applyAppearance();}catch{}
 }
+function activeRoute(){
+  const h=String(location.hash||'');
+  if(h.startsWith('#/')) return h.slice(1);
+  const p=String(location.pathname||'/').replace(/\/+$/,'')||'/';
+  if(p==='/admin'||p.startsWith('/admin/')) return p;
+  return '/';
+}
 async function renderRoute(){
-  if(timer){clearInterval(timer);timer=null;}const h=location.hash||'#/';
-  if(h==='#/akun'){await ensureInit();return renderAccount();}
-  const admin=h.match(/^#\/admin(?:\/([^/]+))?$/);if(admin){await ensureInit();return renderAdmin(admin[1]||'overview');}
-  const m=h.match(/^#\/produk\/([^/]+)\/(.+)$/);if(m){await ensureInit();const p=getProduct(m[1],decodeURIComponent(m[2]));if(!p){toast('Produk tidak ditemukan.',true);location.hash='#/';return;}state.product=p;return detailHtml(p);}
-  const pay=h.match(/^#\/bayar\/(.+)$/);if(pay){await ensureInit();return renderPayment(decodeURIComponent(pay[1]));}
-  if(h==='#/isi-saldo'){await ensureInit();return renderTopup();}
-  if(/^#\/pesanan/.test(h)){await ensureInit();return renderOrders();}
+  if(timer){clearInterval(timer);timer=null;}
+  const route=activeRoute();
+  const admin=route.match(/^\/admin(?:\/([^/]+))?$/);
+  if(admin)return renderAdmin(admin[1]||'overview');
+  if(route==='/akun'){await ensureInit();return renderAccount();}
+  const m=route.match(/^\/produk\/([^/]+)\/(.+)$/);if(m){await ensureInit();const p=getProduct(m[1],decodeURIComponent(m[2]));if(!p){toast('Produk tidak ditemukan.',true);location.hash='#/';return;}state.product=p;return detailHtml(p);}
+  const pay=route.match(/^\/bayar\/(.+)$/);if(pay){await ensureInit();return renderPayment(decodeURIComponent(pay[1]));}
+  if(route==='/isi-saldo'){await ensureInit();return renderTopup();}
+  if(/^\/pesanan/.test(route)){await ensureInit();return renderOrders();}
   await loadCatalog();
 }
 window.addEventListener('hashchange',renderRoute);window.addEventListener('beforeunload',()=>{if(timer)clearInterval(timer);});renderRoute();
