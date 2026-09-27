@@ -9,7 +9,7 @@ process.env.SEWAPAY_SECRET_KEY='sk_test_secret';
 process.env.PAYMENT_TOKEN_SECRET='token-secret';
 process.env.UPSTASH_REDIS_REST_URL='https://redis.test';
 process.env.UPSTASH_REDIS_REST_TOKEN='redis-token';
-process.env.FULFILLMENT_KEY_PREFIX='test:v13';
+process.env.FULFILLMENT_KEY_PREFIX='test:v15';
 
 const calls=[];
 const redis=new Map();
@@ -19,13 +19,21 @@ function reply(status,body){return{ok:status>=200&&status<300,status,async text(
 function redisReply(cmd){
   const op=String(cmd[0]||'').toUpperCase();
   if(op==='GET') return {result:redis.has(String(cmd[1]))?redis.get(String(cmd[1])):null};
-  if(op==='DEL'){const existed=redis.delete(String(cmd[1]));return {result:existed?1:0};}
+  if(op==='DEL'){let n=0;for(const k of cmd.slice(1)){if(redis.delete(String(k)))n++;}return {result:n};}
   if(op==='SET'){
     const k=String(cmd[1]),v=String(cmd[2]);
     const nx=cmd.some(x=>String(x).toUpperCase()==='NX');
     if(nx&&redis.has(k)) return {result:null};
     redis.set(k,v);return {result:'OK'};
   }
+  if(op==='EXPIRE') return {result:redis.has(String(cmd[1]))?1:0};
+  if(op==='EVAL'){
+    const key=String(cmd[3]),expected=String(cmd[4]);
+    if(String(redis.get(key)||'')===expected){const x=redis.delete(key);return {result:x?1:0};}
+    return {result:0};
+  }
+  if(op==='MGET') return {result:cmd.slice(1).map(k=>redis.has(String(k))?redis.get(String(k)):null)};
+  if(op==='SCAN') return {result:['0',[]]};
   return {error:`unsupported redis op ${op}`};
 }
 

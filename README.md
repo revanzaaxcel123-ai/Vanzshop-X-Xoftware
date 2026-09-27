@@ -1,3 +1,21 @@
+# HARDMAX v15 — Reservation + Anti Double Delivery
+
+Build: `HARDMAX-v15-ANTIDOUBLE`
+
+V15 menambah soft-reservation stock record **sebelum payment dibuat**, ownership per `stock_record_id`, lock Redis yang lebih kuat, release hold otomatis untuk payment cancel/failed, dan Fulfillment Ledger di admin. Detail teknis ada di `HARDMAX-V15-ANTI-DOUBLE.md`.
+
+ENV tambahan:
+
+```text
+FULFILLMENT_KEY_PREFIX=vanzshop:v13
+FULFILLMENT_HOLD_TTL_SECONDS=1800
+FULFILLMENT_LOCK_TTL_SECONDS=120
+FULFILLMENT_STOCK_CLAIM_TTL_DAYS=365
+FULFILLMENT_EXCLUSIVE_STOCK=true
+```
+
+---
+
 # HARDMAX v13 — Sewa Pay + Auto Claim Stok Xoftware
 
 ## Arsitektur aktif

@@ -45,7 +45,8 @@ async function handler(req,res){
       }
     }
 
-    return send(res,200,{ok:true,received:true,event,reference,payment_id:paymentId,fulfillment:'not-applicable'});
+    if(Fulfillment.ready()) await Fulfillment.releaseOrderReservations(reference).catch(()=>{});
+    return send(res,200,{ok:true,received:true,event,reference,payment_id:paymentId,fulfillment:'reservations-released'});
   }catch(e){return send(res,e?.status||500,{ok:false,error:e?.message||'Webhook gagal diproses.'});}
 }
 

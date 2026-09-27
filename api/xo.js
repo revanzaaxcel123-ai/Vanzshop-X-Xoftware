@@ -20,7 +20,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v14-BRANDING';
+const BUILD_ID = 'HARDMAX-v15-ANTIDOUBLE';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
@@ -457,21 +457,36 @@ module.exports=async function handler(req,res){
         if(quantity<1||quantity>20) return fail(res,'quantity wajib 1-20.');
         const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
         if(sel.stock!=null && sel.stock<quantity) return fail(res,'Stok Xoftware tidak mencukupi.',409,{stock:sel.stock,requested:quantity});
-        const claimable=await Fulfillment.listStocks(sel.product.id,sel.variation?.id??null,quantity);
-        if(claimable.stocks.length<quantity) return fail(res,'Stok akun aktif Xoftware yang bisa di-auto-claim tidak mencukupi. Payment tidak dibuat.',409,{catalog_stock:sel.stock,claimable_stock:claimable.stocks.length,requested:quantity,product_id:sel.product.id,variation_id:sel.variation?.id??null});
         const amount=Math.round(sel.unitPrice*quantity);
         const reference=paymentReference();
         const description=str(`${sel.product.title}${sel.variation?` - ${sel.variation.title||sel.variation.name}`:''} x${quantity}`,160);
-        const payment=await SewaPay.createPayment({amount,method:paymentMethod,reference,description});
+
+        // v15: soft-reserve record stok SEBELUM invoice dibuat. Ini mencegah dua buyer
+        // membuat payment untuk record stok yang sama di storefront ini.
+        const held=await Fulfillment.reserveCheckoutStock({reference,product_id:sel.product.id,variation_id:sel.variation?.id??null,quantity});
+        let payment;
+        try{
+          payment=await SewaPay.createPayment({amount,method:paymentMethod,reference,description});
+        }catch(e){
+          for(const x of held) await Fulfillment.releaseReservation(x.record_id,reference).catch(()=>{});
+          throw e;
+        }
         const paymentId=str(payment?.id,160);
-        if(!paymentId) return fail(res,'Sewa Pay tidak mengembalikan payment id.',502,payment);
+        if(!paymentId){
+          for(const x of held) await Fulfillment.releaseReservation(x.record_id,reference).catch(()=>{});
+          return fail(res,'Sewa Pay tidak mengembalikan payment id.',502,payment);
+        }
         const orderRecord={
           reference,payment_id:paymentId,product_id:sel.product.id,variation_id:sel.variation?.id??null,code:sel.sku,
           quantity,amount,method:paymentMethod,product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,
-          stock_at_checkout:sel.stock,created_at:new Date().toISOString(),
+          stock_at_checkout:sel.stock,reserved_stock_record_ids:held.map(x=>x.record_id),created_at:new Date().toISOString(),
         };
         try{ await Fulfillment.saveOrder(orderRecord); }
-        catch(e){ try{await SewaPay.cancelPayment(paymentId);}catch{} throw e; }
+        catch(e){
+          try{await SewaPay.cancelPayment(paymentId);}catch{}
+          for(const x of held) await Fulfillment.releaseReservation(x.record_id,reference).catch(()=>{});
+          throw e;
+        }
         const expiresAt=Date.parse(String(payment?.expires_at||''));
         const token=issuePaymentToken({
           payment_id:paymentId,reference,product_id:sel.product.id,variation_id:sel.variation?.id??null,
@@ -494,6 +509,9 @@ module.exports=async function handler(req,res){
         const response=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
         const status=normalizeSewaStatus(response?.status);
         let fulfillment={status:'not-ready',automatic:Fulfillment.ready(),accounts:[]};
+        if(['fail','cancelled'].includes(status) && Fulfillment.ready()){
+          await Fulfillment.releaseOrderReservations(signed.reference).catch(()=>{});
+        }
         if(status==='success'){
           if(!Fulfillment.ready()){
             fulfillment={status:'store-not-configured',automatic:false,accounts:[],error:'Redis/Upstash fulfillment store belum dikonfigurasi.'};
@@ -520,6 +538,7 @@ module.exports=async function handler(req,res){
         try{ signed=verifyPaymentToken(str(b.payment_token,5000)); }catch(e){ return fail(res,e.message,e.status||500); }
         if(!signed) return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
         const response=await SewaPay.cancelPayment(String(signed.payment_id));
+        if(Fulfillment.ready()) await Fulfillment.releaseOrderReservations(signed.reference).catch(()=>{});
         return ok(res,{provider:'sewapay',response});
       }
       case 'payment_verify_binance': {
@@ -553,6 +572,35 @@ module.exports=async function handler(req,res){
         return ok(res,{fulfillment:Fulfillment.publicReceipt(receipt)});
       }
 
+      case 'admin_fulfillment_list': {
+        if(requireAdmin(req,res)) return;
+        const limit=clamp(q(req,'limit'),1,500,100);
+        return ok(res,{stats:await Fulfillment.fulfillmentStats(500),receipts:(await Fulfillment.listReceipts(limit)).map(Fulfillment.publicReceipt),engine:Fulfillment.status()});
+      }
+      case 'admin_fulfillment_get': {
+        if(requireAdmin(req,res)) return;
+        const reference=str(q(req,'reference')||bodyOf(req).reference,200);
+        if(!reference) return fail(res,'reference wajib diisi.');
+        const [order,receipt]=await Promise.all([Fulfillment.getOrder(reference),Fulfillment.getReceipt(reference)]);
+        if(!order&&!receipt) return fail(res,'Order/receipt tidak ditemukan.',404);
+        return ok(res,{order,receipt:Fulfillment.publicReceipt(receipt)});
+      }
+      case 'admin_fulfillment_retry': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const reference=str(bodyOf(req).reference,200);
+        if(!reference) return fail(res,'reference wajib diisi.');
+        const order=await Fulfillment.getOrder(reference);
+        if(!order) return fail(res,'Order record tidak ditemukan.',404);
+        const payment=await SewaPay.getStatus({id:order.payment_id,reference});
+        const receipt=await Fulfillment.claimPaidOrder({reference,payment,source:'admin-retry'});
+        return ok(res,{payment,fulfillment:Fulfillment.publicReceipt(receipt)});
+      }
+      case 'admin_stock_claim': {
+        if(requireAdmin(req,res)) return;
+        const id=str(q(req,'id')||bodyOf(req).id,40);
+        return ok(res,await Fulfillment.stockClaimInfo(id));
+      }
       case 'admin_sewapay_probe': {
         if(requireAdmin(req,res)) return;
         const methods=await SewaPay.getMethods();
