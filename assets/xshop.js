@@ -4,7 +4,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
-const BUILD_ID = 'HARDMAX-v13-AUTOCLAIM';
+const BUILD_ID = 'HARDMAX-v14-BRANDING';
 window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -23,6 +23,19 @@ const DEFAULT_STORE = {
   tagline:'Produk digital pilihan, stok live, checkout otomatis.',
   support:{whatsapp:'',telegram:'',email:''},
   appearance:{theme:'dark',accent:'#f3c74f',radius:20,columns:5,density:'compact',hero:true},
+  branding:{
+    mark:'V',
+    subtitle:'PRODUK DIGITAL',
+    logo_url:'',
+    hero_title:'Produk digital premium, instant delivery, full branding.',
+    hero_subtitle:'Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
+    hero_badges:['Stok live','Auto claim','Checkout cepat','Full branding'],
+    hero_slides:['/assets/showcase/chatgpt.jpg','/assets/showcase/canva.jpg','/assets/showcase/netflix.jpg','/assets/showcase/spotify.jpg','/assets/showcase/youtube.jpg'],
+    footer_note:'Live stock · auto claim · pembayaran instan',
+    receipt_note:'Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
+    body_font:'Plus Jakarta Sans',
+    display_font:'Archivo'
+  },
   registration:{required_before_order:true,api_permission_required_for_new_users:true,supported_sender_types:['whatsapp','telegram_id'],email_is_sender:false,max_per_minute:3,otp_endpoint_documented:false},
   payment:{provider:'sewapay',configured:false,base_url:'https://sewapay.id'},
   checkout:{mode:'sewapay',fulfillment:'disabled-until-redis-configured',shared_sender_configured:false,shared_channel:'whatsapp',shared_sender_masked:''},
@@ -46,6 +59,14 @@ const BRAND_FILES = [
   ['youtube','youtube.svg'],['paypal','paypal.svg'],['capcut','capcut.svg'],['alight','alight-motion.svg'],['vidio','vidio.svg'],
   ['viu','viu.svg'],['apple music','apple-music.svg'],['hbo','hbo-max.svg'],['zoom','zoom.svg'],['scribd','scribd.svg']
 ];
+const FONT_PRESETS = {
+  'plus jakarta sans':{body:"'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif",display:"Archivo,system-ui,sans-serif"},
+  'inter':{body:"Inter,system-ui,-apple-system,'Segoe UI',sans-serif",display:"Sora,Inter,system-ui,sans-serif"},
+  'outfit':{body:"Outfit,system-ui,-apple-system,'Segoe UI',sans-serif",display:"Outfit,system-ui,sans-serif"},
+  'sora':{body:"Sora,system-ui,-apple-system,'Segoe UI',sans-serif",display:"Sora,system-ui,sans-serif"},
+  'space grotesk':{body:"'Space Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif",display:"'Space Grotesk',system-ui,sans-serif"},
+  'archivo':{body:"'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif",display:"Archivo,system-ui,sans-serif"}
+};
 
 function safeJsonParse(raw, fallback){ try { return JSON.parse(raw); } catch { return fallback; } }
 function profile(){ return safeJsonParse(localStorage.getItem('vanz_profile') || 'null', null); }
@@ -63,17 +84,26 @@ function mergeStore(base){
     ...(s || {}),
     support:{...DEFAULT_STORE.support,...(b.support||{}),...(s?.support||{})},
     appearance:{...DEFAULT_STORE.appearance,...(b.appearance||{}),...(a||{})},
+    branding:{...DEFAULT_STORE.branding,...(b.branding||{}),...(s?.branding||{})},
     registration:{...DEFAULT_STORE.registration,...(b.registration||{})},
     checkout:{...DEFAULT_STORE.checkout,...(b.checkout||{})}
   };
 }
+function fontPreset(name, type='body'){
+  const key=String(name||'').trim().toLowerCase();
+  const preset=FONT_PRESETS[key] || FONT_PRESETS['plus jakarta sans'];
+  return preset[type] || preset.body;
+}
 function applyAppearance(){
   const a = state.store.appearance || DEFAULT_STORE.appearance;
+  const b = state.store.branding || DEFAULT_STORE.branding;
   document.documentElement.dataset.theme = a.theme === 'light' ? 'light' : 'dark';
   document.documentElement.dataset.density = a.density === 'comfortable' ? 'comfortable' : 'compact';
   document.documentElement.style.setProperty('--accent', /^#[0-9a-f]{6}$/i.test(a.accent||'') ? a.accent : '#f3c74f');
   document.documentElement.style.setProperty('--radius', `${Math.max(8,Math.min(32,Number(a.radius)||20))}px`);
   document.documentElement.style.setProperty('--grid-columns', String(Math.max(2,Math.min(6,Number(a.columns)||5))));
+  document.documentElement.style.setProperty('--font', fontPreset(b.body_font,'body'));
+  document.documentElement.style.setProperty('--display', fontPreset(b.display_font,'display'));
 }
 applyAppearance();
 
@@ -177,6 +207,76 @@ function stockLabel(stock){
 function shortDesc(text,fallback='Produk digital siap diproses otomatis.'){
   const s=String(text||fallback).replace(/\s+/g,' ').trim(); return s.length>128?`${s.slice(0,125)}…`:s;
 }
+function slidesList(){
+  const slides=Array.isArray(state.store?.branding?.hero_slides)?state.store.branding.hero_slides:[];
+  return slides.map(normalizeMediaUrl).filter(Boolean).length?slides.map(normalizeMediaUrl).filter(Boolean):DEFAULT_STORE.branding.hero_slides;
+}
+function brandMark(){ return String(state.store?.branding?.mark || state.store?.name?.[0] || 'V').trim().slice(0,2) || 'V'; }
+function brandSubtitle(){ return String(state.store?.branding?.subtitle || 'PRODUK DIGITAL').trim() || 'PRODUK DIGITAL'; }
+function brandLogo(){ return normalizeMediaUrl(state.store?.branding?.logo_url || ''); }
+function heroBadges(){ return Array.isArray(state.store?.branding?.hero_badges) && state.store.branding.hero_badges.length ? state.store.branding.hero_badges : DEFAULT_STORE.branding.hero_badges; }
+function heroTitle(){ return String(state.store?.branding?.hero_title || state.store?.tagline || DEFAULT_STORE.branding.hero_title).trim(); }
+function heroSubtitle(){ return String(state.store?.branding?.hero_subtitle || state.store?.tagline || DEFAULT_STORE.branding.hero_subtitle).trim(); }
+function footerNote(){ return String(state.store?.branding?.footer_note || DEFAULT_STORE.branding.footer_note).trim(); }
+function receiptNote(){ return String(state.store?.branding?.receipt_note || DEFAULT_STORE.branding.receipt_note).trim(); }
+function cleanText(v){ return String(v ?? '').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim(); }
+function parseDeliveryItem(item){
+  if(typeof item==='string'){
+    const raw=item.trim();
+    if(!raw) return {raw:''};
+    try { return parseDeliveryItem(JSON.parse(raw)); } catch {}
+    const parts=raw.split('|').map(x=>x.trim());
+    if(parts.length>=2){
+      return {title:parts[0].startsWith('http')?'Link akses':'Akun siap pakai', primary_label:parts[0].startsWith('http')?'Link':'Email / Username', primary:parts[0], secondary_label:'Password', secondary:parts[1], note:parts.slice(2).join(' | '), raw};
+    }
+    return {title:'Detail produk', note:raw, raw};
+  }
+  if(item && typeof item==='object'){
+    if(Object.prototype.hasOwnProperty.call(item,'value')) return parseDeliveryItem(item.value);
+    const primary = item.email || item.username || item.user || item.login || item.url || item.link || '';
+    const secondary = item.password || item.pass || item.pw || item.pin || item.code || '';
+    const note = item.note || item.catatan || item.description || item.desc || item.message || '';
+    const extra = Object.entries(item).filter(([k])=>!['email','username','user','login','url','link','password','pass','pw','pin','code','note','catatan','description','desc','message'].includes(k)).map(([k,v])=>`${cleanText(k)}: ${typeof v==='object'?JSON.stringify(v):v}`);
+    return {
+      title: item.url || item.link ? 'Link akses' : 'Akun siap pakai',
+      primary_label: item.url || item.link ? 'Link' : 'Email / Username',
+      primary: primary ? String(primary) : '',
+      secondary_label: secondary ? 'Password' : '',
+      secondary: secondary ? String(secondary) : '',
+      note: [note,...extra].filter(Boolean).join('\n'),
+      raw: JSON.stringify(item)
+    };
+  }
+  return {raw:String(item ?? '')};
+}
+function formatAccount(a){
+  const p=parseDeliveryItem(a);
+  const rows=[];
+  if(p.primary) rows.push(`${p.primary_label}: ${p.primary}`);
+  if(p.secondary) rows.push(`${p.secondary_label}: ${p.secondary}`);
+  if(p.note) rows.push(`Catatan: ${p.note}`);
+  return rows.length?rows.join('\n'):p.raw||'';
+}
+function renderCredentialCard(a, idx){
+  const p=parseDeliveryItem(a);
+  const copy=formatAccount(a);
+  return `<article class="credential-card"><div class="credential-top"><div><span class="credential-chip">ITEM ${idx+1}</span><h3>${esc(p.title || 'Detail akun')}</h3></div><button class="btn btn-sm credential-copy" data-copy="${esc(copy)}">Salin</button></div>${p.primary?`<div class="credential-field"><span>${esc(p.primary_label||'Akun')}</span><strong>${esc(p.primary)}</strong></div>`:''}${p.secondary?`<div class="credential-field"><span>${esc(p.secondary_label||'Password')}</span><strong>${esc(p.secondary)}</strong></div>`:''}${p.note?`<div class="credential-note">${esc(p.note).replace(/\n/g,'<br>')}</div>`:''}</article>`;
+}
+function mountHeroSlider(){
+  const root=$('[data-hero-slider]');
+  if(!root) return;
+  const track=$('.hero-slider-track',root), slides=$$('.hero-slide',root); if(!track||slides.length<2) return;
+  let index=0;
+  const update=()=>{ slides.forEach((el,i)=>el.classList.toggle('is-center',i===index)); track.style.transform=`translateX(calc(${(100/slides.length)*(-index)}% + ${index*6}px))`; };
+  const next=()=>{ index=(index+1)%slides.length; update(); };
+  const prev=()=>{ index=(index-1+slides.length)%slides.length; update(); };
+  $('[data-slider-next]',root)?.addEventListener('click',next);
+  $('[data-slider-prev]',root)?.addEventListener('click',prev);
+  update();
+  let t=setInterval(next,3500);
+  root.addEventListener('mouseenter',()=>clearInterval(t));
+  root.addEventListener('mouseleave',()=>{clearInterval(t); t=setInterval(next,3500);});
+}
 function visualMarkup(p,extra=''){
   const direct=productImage(p), fallback=localBrandImage(p), cat=brandCategory(p?.title,p?.code);
   return `<div class="product-visual ${extra}"><div class="visual-media">
@@ -187,9 +287,10 @@ function visualMarkup(p,extra=''){
 
 function shell(content,active='catalog'){
   const p=profile();
+  const logo=brandLogo();
   app.innerHTML=`<div class="app-shell">
     <header class="site-header"><div class="wrap header-inner">
-      <a class="brand" href="#/"><span class="brand-mark">V</span><span class="brand-copy"><strong>${esc(state.store.name)}</strong><small>produk digital</small></span></a>
+      <a class="brand" href="#/">${logo?`<span class="brand-logo"><img src="${esc(logo)}" alt="${esc(state.store.name)}"></span>`:`<span class="brand-mark">${esc(brandMark())}</span>`}<span class="brand-copy"><strong>${esc(state.store.name)}</strong><small>${esc(brandSubtitle())}</small></span></a>
       <nav class="nav-right">
         <a class="nav-link ${active==='catalog'?'active':''}" href="#/">Katalog</a>
         ${state.store.checkout?.mode==='shared'?'':`<a class="nav-link ${active==='topup'?'active':''}" href="#/isi-saldo">Isi Saldo</a>`}
@@ -199,7 +300,7 @@ function shell(content,active='catalog'){
       </nav>
     </div></header>
     ${content}
-    <footer class="site-footer"><div class="wrap footer-inner"><div><b>${esc(state.store.name)}</b><span>${esc(state.store.tagline)}</span></div><small>Live stock · Xoftware Order API · QRIS</small></div></footer>
+    <footer class="site-footer"><div class="wrap footer-inner"><div><b>${esc(state.store.name)}</b><span>${esc(state.store.tagline)}</span></div><small>${esc(footerNote())}</small></div></footer>
   </div>`;
 }
 
@@ -219,12 +320,14 @@ async function loadCatalog(){
     shell(`<main class="page wrap"><div class="empty-card"><div class="empty-icon">!</div><h3>Katalog belum bisa dimuat</h3><p>${esc(e.message)}</p><button class="btn btn-primary" id="retry">Coba lagi</button></div></main>`,'catalog');
     $('#retry').onclick=loadCatalog;return;
   }
-  const hero=state.store.appearance?.hero!==false?`<section class="hero wrap"><div class="hero-copy"><span class="section-kicker">${esc(state.store.name)} · katalog live</span><h1>Produk digital <span>siap dipakai.</span></h1><p>${esc(state.store.tagline)}</p><div class="hero-pills"><span>Stok live</span><span>QRIS otomatis</span><span>${state.store.payment?.provider==='sewapay'?'Sewa Pay':'Payment'}</span></div></div><div class="hero-side"><div class="hero-card"><small>${esc(state.store.name)}</small><strong>Simple.</strong><span>Ringkas. Cepat. Jelas.</span></div></div></section>`:'';
+  const slides=slidesList();
+  const hero=state.store.appearance?.hero!==false?`<section class="hero hero-brand wrap"><div class="hero-copy hero-copy-rich"><span class="section-kicker">${esc(state.store.name)} · full branding</span><h1>${esc(heroTitle()).replace(/\n/g,'<br>')}</h1><p>${esc(heroSubtitle())}</p><div class="hero-pills">${heroBadges().map(x=>`<span>${esc(x)}</span>`).join('')}</div><div class="hero-cta"><a class="btn btn-primary" href="#/akun">Isi data pembeli</a><a class="btn" href="#/pesanan">Lihat pesanan</a></div><div class="hero-metrics"><div><strong>${allProducts().length}</strong><span>produk aktif</span></div><div><strong>${esc(state.catalogSummary?.known_stock_total??'—')}</strong><span>stok live</span></div><div><strong>${esc(state.catalogSummary?.method||'GET')}</strong><span>sinkron katalog</span></div></div></div><div class="hero-showcase" data-hero-slider><button class="hero-arrow left" data-slider-prev aria-label="Slide sebelumnya">‹</button><div class="hero-slider-window"><div class="hero-slider-track">${slides.map((src,i)=>`<article class="hero-slide ${i===0?'is-center':''}"><img src="${esc(src)}" alt="Banner ${i+1}"></article>`).join('')}</div></div><button class="hero-arrow right" data-slider-next aria-label="Slide berikutnya">›</button></div></section>`:'';
   shell(`<main class="page">${hero}<section class="catalog wrap"><div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">${allProducts().length}</b> produk</span><span><b>${esc(state.catalogSummary?.known_stock_total??'—')}</b> stok terhitung</span><span>${esc(state.catalogSummary?.method||'GET')} /v1/product</span></div></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-filter="all">Semua</button><button class="chip" data-filter="owner">Owner</button><button class="chip" data-filter="supplier">Supplier</button></div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk..."></label><select id="sort" class="sort"><option value="store">Urutan toko</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section></main>`,'catalog');
   $('#search').oninput=e=>{state.q=e.target.value.toLowerCase();drawGrid();};
   $('#sort').onchange=e=>{state.sort=e.target.value;drawGrid();};
   $$('.chip').forEach(b=>b.onclick=()=>{state.source=b.dataset.filter;$$('.chip').forEach(x=>x.classList.toggle('active',x===b));drawGrid();});
   drawGrid();
+  mountHeroSlider();
 }
 function drawGrid(){
   let list=allProducts();
@@ -331,11 +434,13 @@ async function refreshInvoice(o){
     if(!o.status_token)throw new Error('Pesanan lama tidak memiliki token status.');const data=await api('order_status',{transaction_id:o.transaction_id,status_token:o.status_token}),d=data?.transaction||{},status=String(d?.status||'').toLowerCase();if(status){o.status=status;o.accounts=d?.accounts||[];if(d?.total!=null||d?.total_to_pay!=null)o.total=Number(d?.total??d?.total_to_pay);saveLocalOrder(o);}const el=$('#invoiceStatus');if(el)el.textContent=status==='success'?'Selesai':status==='fail'?'Gagal':'Menunggu';if(status==='success'){clearInterval(timer);timer=null;showSuccess(o,d?.accounts||[]);}else if(status==='fail'){clearInterval(timer);timer=null;toast('Pembayaran gagal atau dibatalkan.',true);}
   }catch(e){if(String(e.message).toLowerCase().includes('token')){if(timer){clearInterval(timer);timer=null;}}toast(e.message,true);}
 }
-function formatAccount(a){if(typeof a==='string')return a;if(a&&typeof a==='object'&&Object.prototype.hasOwnProperty.call(a,'value'))return formatAccount(a.value);return Object.entries(a||{}).map(([k,v])=>`${k}: ${typeof v==='object'?JSON.stringify(v):v}`).join('\n');}
 function showSuccess(o,accountsOverride){
-  if(timer){clearInterval(timer);timer=null;}const acc=accountsOverride||o.accounts||[],sewa=o.provider==='sewapay';
-  shell(`<main class="success wrap"><div class="success-card"><div class="success-mark">✓</div><span class="section-kicker">${sewa?'Payment + fulfillment completed':'Pesanan berhasil'}</span><h1>${sewa?'Pesanan siap':'Pesanan selesai'}</h1><p>${sewa?'Pembayaran Sewa Pay sudah selesai dan stok akun Xoftware sudah di-claim untuk transaksi ini.':'Detail produk sudah tersedia.'}</p><div class="success-meta"><span>${esc(o.product_title)}</span><span>${money(o.total)}</span>${sewa?`<span>Reference: ${esc(o.reference||'—')}</span>`:''}</div>${acc.length?`<div class="accounts"><div class="accounts-head"><b>Detail akun / produk</b><button class="btn btn-sm" id="copyAll">Salin semua</button></div>${acc.map(a=>`<div class="account-row"><pre>${esc(formatAccount(a))}</pre></div>`).join('')}</div>`:`<div class="registration-blocked"><b>Fulfillment belum selesai</b><span>${esc(o.fulfillment_error||'Cek status lagi. Jika stok aktif Xoftware tersedia, sistem akan retry claim tanpa mengambil dua kali.')}</span><button class="btn btn-sm" id="retryFulfillment">Retry claim</button></div>`}<div class="success-actions"><a class="btn btn-primary" href="#/pesanan">Pesanan</a><a class="btn" href="#/">Katalog</a></div></div></main>`,'orders');
+  if(timer){clearInterval(timer);timer=null;}
+  const acc=Array.isArray(accountsOverride)&&accountsOverride.length?accountsOverride:(Array.isArray(o.accounts)?o.accounts:[]);
+  const sewa=o.provider==='sewapay';
+  shell(`<main class="success wrap"><div class="success-card success-card-rich"><div class="success-mark">✓</div><span class="section-kicker">${sewa?'Payment + fulfillment completed':'Pesanan berhasil'}</span><h1>${sewa?'Pesanan siap dikirim':'Pesanan selesai'}</h1><p>${sewa?'Pembayaran Sewa Pay sudah selesai dan stok akun Xoftware sudah di-claim untuk transaksi ini.':'Detail produk sudah tersedia.'}</p><div class="success-meta"><span>${esc(o.product_title)}</span><span>${money(o.total)}</span>${sewa?`<span>Reference: ${esc(o.reference||'—')}</span>`:''}</div>${acc.length?`<div class="accounts"><div class="accounts-head"><div><b>Detail akun / produk</b><small>${esc(receiptNote())}</small></div><button class="btn btn-sm" id="copyAll">Salin semua</button></div><div class="credential-grid">${acc.map((a,i)=>renderCredentialCard(a,i)).join('')}</div></div>`:`<div class="registration-blocked"><b>Fulfillment belum selesai</b><span>${esc(o.fulfillment_error||'Cek status lagi. Jika stok aktif Xoftware tersedia, sistem akan retry claim tanpa mengambil dua kali.')}</span><button class="btn btn-sm" id="retryFulfillment">Retry claim</button></div>`}<div class="success-actions"><a class="btn btn-primary" href="#/pesanan">Pesanan</a><a class="btn" href="#/">Katalog</a></div></div></main>`,'orders');
   const b=$('#copyAll');if(b)b.onclick=async()=>{try{await navigator.clipboard.writeText(acc.map(formatAccount).join('\n\n'));toast('Detail disalin.');}catch{toast('Gagal menyalin otomatis.',true);}};
+  $$('.credential-copy').forEach(btn=>btn.onclick=async()=>{try{await navigator.clipboard.writeText(btn.dataset.copy||'');toast('Detail akun disalin.');}catch{toast('Clipboard gagal.',true);}});
   const retry=$('#retryFulfillment');if(retry)retry.onclick=async()=>{retry.disabled=true;retry.textContent='Claiming...';try{const r=await api('fulfillment_retry',{payment_token:o.payment_token});const a=(r?.fulfillment?.accounts||[]).map(x=>x?.value??x);o.accounts=a;o.fulfillment=r?.fulfillment?.status||'pending';o.fulfillment_error=r?.fulfillment?.last_error||'';saveLocalOrder(o);if(o.fulfillment==='fulfilled')showSuccess(o,a);else{toast(o.fulfillment_error||'Fulfillment belum selesai.',true);retry.disabled=false;retry.textContent='Retry claim';}}catch(e){toast(e.message,true);retry.disabled=false;retry.textContent='Retry claim';}};
 }
 
@@ -463,15 +568,14 @@ function adminStock(){
   $('#asLoad').onclick=async()=>{try{const r=await adminApi('pm_stocks',{query:{product_id:$('#asListProduct').value.trim(),variation_id:$('#asListVariation').value.trim(),page:1,limit:100}}),data=r?.data??r,stocks=data?.stocks||[];$('#asResult').innerHTML=stocks.length?`<div class="stock-list">${stocks.map(s=>`<div class="stock-row"><span>#${esc(s.id)} · ${esc(JSON.stringify(s.value||s))}</span><button class="btn btn-sm danger as-delete" data-id="${esc(s.id)}">Hapus</button></div>`).join('')}</div>`:'<span class="muted">Stok kosong.</span>';$$('.as-delete').forEach(b=>b.onclick=async()=>{if(!confirm(`Hapus stok #${b.dataset.id}?`))return;try{await adminApi('pm_stock_delete',{method:'POST',body:{id:b.dataset.id}});b.closest('.stock-row').remove();toast('Stok dihapus.');}catch(e){toast(e.message,true);}});}catch(e){$('#asResult').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
 }
 function adminAppearance(){
-  const a={...DEFAULT_STORE.appearance,...(state.store.appearance||{})},s=state.store.support||{};
-  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Tampilan & identitas toko</h2><div class="form-grid"><label class="form-field"><span>Nama toko</span><input id="aaName" class="input big" value="${esc(state.store.name)}"></label><label class="form-field"><span>Tagline</span><input id="aaTagline" class="input big" value="${esc(state.store.tagline)}"></label><label class="form-field"><span>Theme</span><select id="aaTheme" class="input big"><option value="dark" ${a.theme==='dark'?'selected':''}>Dark</option><option value="light" ${a.theme==='light'?'selected':''}>Light</option></select></label><label class="form-field"><span>Accent</span><input id="aaAccent" class="input big" type="color" value="${esc(a.accent||'#f3c74f')}"></label><label class="form-field"><span>Radius (${esc(a.radius)})</span><input id="aaRadius" type="range" min="8" max="32" value="${esc(a.radius)}"></label><label class="form-field"><span>Kolom desktop</span><input id="aaColumns" type="number" min="2" max="6" class="input big" value="${esc(a.columns)}"></label><label class="form-field"><span>Density</span><select id="aaDensity" class="input big"><option value="compact" ${a.density==='compact'?'selected':''}>Compact</option><option value="comfortable" ${a.density==='comfortable'?'selected':''}>Comfortable</option></select></label><label class="check-field"><input id="aaHero" type="checkbox" ${a.hero!==false?'checked':''}><span>Tampilkan hero</span></label><label class="form-field"><span>WhatsApp toko</span><input id="aaWa" class="input big" value="${esc(s.whatsapp||'')}"></label><label class="form-field"><span>Telegram toko</span><input id="aaTg" class="input big" value="${esc(s.telegram||'')}"></label><label class="form-field"><span>Email toko</span><input id="aaEmail" class="input big" value="${esc(s.email||'')}"></label></div><div class="button-row"><button id="aaPreview" class="btn btn-primary">Simpan preview lokal</button><button id="aaReset" class="btn">Reset preview</button><button id="aaEnv" class="btn">Generate ENV Vercel</button></div><div id="aaEnvBox"></div></section><section class="admin-panel wide"><h2>Kenapa setting global pakai ENV?</h2><p class="muted">Project ini tidak memakai database. Vercel Function tidak bisa menyimpan perubahan dashboard secara permanen ke file deployment. Preview disimpan di browser admin; untuk semua pengunjung, copy ENV yang dihasilkan ke Vercel lalu redeploy.</p></section></div>`;
-  const get=()=>({store:{name:$('#aaName').value.trim(),tagline:$('#aaTagline').value.trim(),support:{whatsapp:$('#aaWa').value.trim(),telegram:$('#aaTg').value.trim(),email:$('#aaEmail').value.trim()}},appearance:{theme:$('#aaTheme').value,accent:$('#aaAccent').value,radius:Number($('#aaRadius').value),columns:Number($('#aaColumns').value),density:$('#aaDensity').value,hero:$('#aaHero').checked}});
-  $('#aaPreview').onclick=()=>{const x=get();localStorage.setItem('vanz_appearance_override',JSON.stringify(x.appearance));localStorage.setItem('vanz_store_override',JSON.stringify(x.store));state.store=mergeStore({...state.store,...x.store,appearance:x.appearance});applyAppearance();toast('Preview disimpan di browser ini.');renderAdmin('appearance');};
+  const a={...DEFAULT_STORE.appearance,...(state.store.appearance||{})},s=state.store.support||{},b={...DEFAULT_STORE.branding,...(state.store.branding||{})};
+  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><div class="panel-title"><div><h2>Branding, font & media</h2><p class="muted">Atur brand VanzShop, banner slide home, font, dan foto/logo. Preview tersimpan lokal di browser admin ini.</p></div><span class="build-chip">${BUILD_ID}</span></div><div class="form-grid"><label class="form-field"><span>Nama toko</span><input id="aaName" class="input big" value="${esc(state.store.name)}"></label><label class="form-field"><span>Tagline</span><input id="aaTagline" class="input big" value="${esc(state.store.tagline)}"></label><label class="form-field"><span>Inisial brand</span><input id="aaMark" class="input big" maxlength="2" value="${esc(b.mark||'V')}"></label><label class="form-field"><span>Subtitle brand</span><input id="aaSubtitle" class="input big" value="${esc(b.subtitle||'PRODUK DIGITAL')}"></label><label class="form-field"><span>Theme</span><select id="aaTheme" class="input big"><option value="dark" ${a.theme==='dark'?'selected':''}>Dark</option><option value="light" ${a.theme==='light'?'selected':''}>Light</option></select></label><label class="form-field"><span>Accent</span><input id="aaAccent" class="input big" type="color" value="${esc(a.accent||'#f3c74f')}"></label><label class="form-field"><span>Font body</span><select id="aaBodyFont" class="input big">${['Plus Jakarta Sans','Inter','Outfit','Sora','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.body_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="form-field"><span>Font heading</span><select id="aaDisplayFont" class="input big">${['Archivo','Sora','Outfit','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.display_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="form-field"><span>Radius (${esc(a.radius)})</span><input id="aaRadius" type="range" min="8" max="32" value="${esc(a.radius)}"></label><label class="form-field"><span>Kolom desktop</span><input id="aaColumns" type="number" min="2" max="6" class="input big" value="${esc(a.columns)}"></label><label class="form-field"><span>Density</span><select id="aaDensity" class="input big"><option value="compact" ${a.density==='compact'?'selected':''}>Compact</option><option value="comfortable" ${a.density==='comfortable'?'selected':''}>Comfortable</option></select></label><label class="check-field"><input id="aaHero" type="checkbox" ${a.hero!==false?'checked':''}><span>Tampilkan hero slider</span></label><label class="form-field wide"><span>Hero title</span><input id="aaHeroTitle" class="input big" value="${esc(b.hero_title||'')}"></label><label class="form-field wide"><span>Hero subtitle</span><textarea id="aaHeroSubtitle" class="input textarea">${esc(b.hero_subtitle||'')}</textarea></label><label class="form-field wide"><span>Badge hero (pisahkan koma)</span><input id="aaHeroBadges" class="input big" value="${esc((b.hero_badges||[]).join(', '))}"></label><label class="form-field wide"><span>URL logo / foto brand</span><input id="aaLogoUrl" class="input big" placeholder="https://...png atau data:image/..." value="${esc(b.logo_url||'')}"></label><label class="form-field wide"><span>Banner slide home (satu URL per baris)</span><textarea id="aaSlides" class="input textarea tall" placeholder="https://...jpg">${esc((b.hero_slides||[]).join('\n'))}</textarea></label><label class="form-field wide"><span>Catatan output akun</span><textarea id="aaReceiptNote" class="input textarea">${esc(b.receipt_note||'')}</textarea></label><label class="form-field wide"><span>Footer note</span><input id="aaFooterNote" class="input big" value="${esc(b.footer_note||'')}"></label><label class="form-field"><span>WhatsApp toko</span><input id="aaWa" class="input big" value="${esc(s.whatsapp||'')}"></label><label class="form-field"><span>Telegram toko</span><input id="aaTg" class="input big" value="${esc(s.telegram||'')}"></label><label class="form-field"><span>Email toko</span><input id="aaEmail" class="input big" value="${esc(s.email||'')}"></label><label class="form-field wide"><span>Upload logo/foto lokal untuk preview browser ini</span><input id="aaLogoFile" class="input big" type="file" accept="image/*"></label></div><div class="button-row"><button id="aaPreview" class="btn btn-primary">Simpan preview lokal</button><button id="aaReset" class="btn">Reset preview</button><button id="aaEnv" class="btn">Generate ENV Vercel</button></div><div id="aaEnvBox"></div></section><section class="admin-panel"><h2>Catatan penting</h2><p class="muted">Upload file gambar di dashboard hanya untuk preview lokal browser ini. Supaya permanen untuk semua pengunjung, pakai URL gambar yang publik lalu tempel ke Vercel ENV dan redeploy.</p></section><section class="admin-panel"><h2>Tips format stok</h2><p class="muted">Stok format <code>email|password</code> sekarang ditampilkan otomatis sebagai kartu akun yang rapi. Kalau stok berbentuk <code>url|catatan</code> atau object JSON, output sukses juga tetap dipoles.</p></section></div>`;
+  const get=()=>({store:{name:$('#aaName').value.trim(),tagline:$('#aaTagline').value.trim(),support:{whatsapp:$('#aaWa').value.trim(),telegram:$('#aaTg').value.trim(),email:$('#aaEmail').value.trim()},branding:{mark:$('#aaMark').value.trim()||'V',subtitle:$('#aaSubtitle').value.trim()||'PRODUK DIGITAL',logo_url:$('#aaLogoUrl').value.trim(),hero_title:$('#aaHeroTitle').value.trim(),hero_subtitle:$('#aaHeroSubtitle').value.trim(),hero_badges:$('#aaHeroBadges').value.split(',').map(v=>v.trim()).filter(Boolean),hero_slides:$('#aaSlides').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),receipt_note:$('#aaReceiptNote').value.trim(),footer_note:$('#aaFooterNote').value.trim(),body_font:$('#aaBodyFont').value,display_font:$('#aaDisplayFont').value}},appearance:{theme:$('#aaTheme').value,accent:$('#aaAccent').value,radius:Number($('#aaRadius').value),columns:Number($('#aaColumns').value),density:$('#aaDensity').value,hero:$('#aaHero').checked}});
+  $('#aaLogoFile').onchange=(e)=>{const file=e.target.files&&e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ $('#aaLogoUrl').value=String(reader.result||''); toast('Logo/foto dimasukkan ke preview lokal.'); }; reader.readAsDataURL(file); };
+  $('#aaPreview').onclick=()=>{const x=get();localStorage.setItem('vanz_appearance_override',JSON.stringify(x.appearance));localStorage.setItem('vanz_store_override',JSON.stringify(x.store));state.store=mergeStore({...state.store,...x.store,appearance:x.appearance,branding:x.store.branding});applyAppearance();toast('Preview branding disimpan di browser ini.');renderAdmin('appearance');};
   $('#aaReset').onclick=()=>{localStorage.removeItem('vanz_appearance_override');localStorage.removeItem('vanz_store_override');toast('Preview lokal dihapus. Reload katalog untuk nilai deployment.');location.hash='#/';};
-  $('#aaEnv').onclick=async()=>{const x=get(),lines=[`STORE_NAME=${x.store.name}`,`STORE_TAGLINE=${x.store.tagline}`,`STORE_THEME=${x.appearance.theme}`,`STORE_ACCENT=${x.appearance.accent}`,`STORE_RADIUS=${x.appearance.radius}`,`STORE_COLUMNS=${x.appearance.columns}`,`STORE_DENSITY=${x.appearance.density}`,`STORE_HERO=${x.appearance.hero?'true':'false'}`,`STORE_WHATSAPP=${x.store.support.whatsapp}`,`STORE_TELEGRAM=${x.store.support.telegram}`,`STORE_EMAIL=${x.store.support.email}`],txt=lines.join('\n');$('#aaEnvBox').innerHTML=`<div class="env-box"><pre>${esc(txt)}</pre><button id="copyEnv" class="btn btn-sm">Salin ENV</button></div>`;$('#copyEnv').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('ENV disalin.');}catch{toast('Clipboard tidak tersedia.',true);}};};
+  $('#aaEnv').onclick=async()=>{const x=get(),lines=[`STORE_NAME=${x.store.name}`,`STORE_TAGLINE=${x.store.tagline}`,`STORE_BRAND_MARK=${x.store.branding.mark}`,`STORE_BRAND_SUBTITLE=${x.store.branding.subtitle}`,`STORE_LOGO_URL=${x.store.branding.logo_url}`,`STORE_HERO_TITLE=${x.store.branding.hero_title}`,`STORE_HERO_SUBTITLE=${x.store.branding.hero_subtitle}`,`STORE_HERO_BADGES=${x.store.branding.hero_badges.join(',')}`,`STORE_HERO_SLIDES=${x.store.branding.hero_slides.join(',')}`,`STORE_RECEIPT_NOTE=${x.store.branding.receipt_note}`,`STORE_FOOTER_NOTE=${x.store.branding.footer_note}`,`STORE_FONT_BODY=${x.store.branding.body_font}`,`STORE_FONT_DISPLAY=${x.store.branding.display_font}`,`STORE_THEME=${x.appearance.theme}`,`STORE_ACCENT=${x.appearance.accent}`,`STORE_RADIUS=${x.appearance.radius}`,`STORE_COLUMNS=${x.appearance.columns}`,`STORE_DENSITY=${x.appearance.density}`,`STORE_HERO=${x.appearance.hero?'true':'false'}`,`STORE_WHATSAPP=${x.store.support.whatsapp}`,`STORE_TELEGRAM=${x.store.support.telegram}`,`STORE_EMAIL=${x.store.support.email}`],txt=lines.join('\n');$('#aaEnvBox').innerHTML=`<div class="env-box"><pre>${esc(txt)}</pre><button id="copyEnv" class="btn btn-sm">Salin ENV</button></div>`;$('#copyEnv').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('ENV branding disalin.');}catch{toast('Clipboard tidak tersedia.',true);}};};
 }
-
-
 
 async function adminSewaPay(){
   const box=$('#adminContent');
@@ -659,7 +763,51 @@ function adminEnvironment(){
     'XSOFTWARE_CHECKOUT_MODE=user',
     'XSOFTWARE_SHARED_CHANNEL=whatsapp',
     'XSOFTWARE_SHARED_SENDER=',
-    'XSOFTWARE_SHARED_NAME=VanzShop Checkout'
+    'XSOFTWARE_SHARED_NAME=VanzShop Checkout',
+    'STORE_BRAND_MARK=V',
+    'STORE_BRAND_SUBTITLE=PRODUK DIGITAL',
+    'STORE_LOGO_URL=',
+    'STORE_HERO_TITLE=Produk digital premium, instant delivery, full branding.',
+    'STORE_HERO_SUBTITLE=Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
+    'STORE_HERO_BADGES=Stok live,Auto claim,Checkout cepat,Full branding',
+    'STORE_HERO_SLIDES=/assets/showcase/chatgpt.jpg,/assets/showcase/canva.jpg,/assets/showcase/netflix.jpg',
+    'STORE_RECEIPT_NOTE=Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
+    'STORE_FOOTER_NOTE=Live stock · auto claim · pembayaran instan',
+    'STORE_FONT_BODY=Plus Jakarta Sans',
+    'STORE_FONT_DISPLAY=Archivo',
+    'STORE_BRAND_MARK=V',
+    'STORE_BRAND_SUBTITLE=PRODUK DIGITAL',
+    'STORE_LOGO_URL=',
+    'STORE_HERO_TITLE=Produk digital premium, instant delivery, full branding.',
+    'STORE_HERO_SUBTITLE=Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
+    'STORE_HERO_BADGES=Stok live,Auto claim,Checkout cepat,Full branding',
+    'STORE_HERO_SLIDES=/assets/showcase/chatgpt.jpg,/assets/showcase/canva.jpg,/assets/showcase/netflix.jpg',
+    'STORE_RECEIPT_NOTE=Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
+    'STORE_FOOTER_NOTE=Live stock · auto claim · pembayaran instan',
+    'STORE_FONT_BODY=Plus Jakarta Sans',
+    'STORE_FONT_DISPLAY=Archivo',
+    'STORE_BRAND_MARK=V',
+    'STORE_BRAND_SUBTITLE=PRODUK DIGITAL',
+    'STORE_LOGO_URL=',
+    'STORE_HERO_TITLE=Produk digital premium, instant delivery, full branding.',
+    'STORE_HERO_SUBTITLE=Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
+    'STORE_HERO_BADGES=Stok live,Auto claim,Checkout cepat,Full branding',
+    'STORE_HERO_SLIDES=/assets/showcase/chatgpt.jpg,/assets/showcase/canva.jpg,/assets/showcase/netflix.jpg',
+    'STORE_RECEIPT_NOTE=Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
+    'STORE_FOOTER_NOTE=Live stock · auto claim · pembayaran instan',
+    'STORE_FONT_BODY=Plus Jakarta Sans',
+    'STORE_FONT_DISPLAY=Archivo',
+    'STORE_BRAND_MARK=V',
+    'STORE_BRAND_SUBTITLE=PRODUK DIGITAL',
+    'STORE_LOGO_URL=',
+    'STORE_HERO_TITLE=Produk digital premium, instant delivery, full branding.',
+    'STORE_HERO_SUBTITLE=Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
+    'STORE_HERO_BADGES=Stok live,Auto claim,Checkout cepat,Full branding',
+    'STORE_HERO_SLIDES=/assets/showcase/chatgpt.jpg,/assets/showcase/canva.jpg,/assets/showcase/netflix.jpg',
+    'STORE_RECEIPT_NOTE=Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
+    'STORE_FOOTER_NOTE=Live stock · auto claim · pembayaran instan',
+    'STORE_FONT_BODY=Plus Jakarta Sans',
+    'STORE_FONT_DISPLAY=Archivo'
   ];const txt=lines.join('\n');
   $('#adminContent').innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Vercel Environment helper</h2><div class="diag-warning">Jangan commit API key/password asli ke GitHub. Isi secret langsung di Vercel Environment Variables.</div><div class="env-box"><pre>${esc(txt)}</pre><button id="aeCopy" class="btn btn-primary">Salin template ENV</button></div></section><section class="admin-panel"><h2>Wajib</h2><div class="kv"><span>XSOFTWARE_API_KEY</span><b>secret</b></div><div class="kv"><span>ADMIN_PASSWORD</span><b>secret</b></div></section><section class="admin-panel"><h2>Opsional</h2><p class="muted">STORE_* mengatur tampilan/kontak global. XSOFTWARE_TIMEOUT mengatur timeout request provider.</p></section></div>`;
   $('#aeCopy').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('Template ENV disalin.');}catch{toast('Clipboard gagal.',true);}};

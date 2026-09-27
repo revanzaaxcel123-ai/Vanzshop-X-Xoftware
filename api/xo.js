@@ -20,8 +20,20 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v13-AUTOCLAIM';
+const BUILD_ID = 'HARDMAX-v14-BRANDING';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
+
+function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
+function envFont(v, fallback){
+  const key=String(v||'').trim().toLowerCase();
+  if(key==='inter') return 'Inter';
+  if(key==='outfit') return 'Outfit';
+  if(key==='sora') return 'Sora';
+  if(key==='space-grotesk' || key==='space grotesk') return 'Space Grotesk';
+  if(key==='jakarta' || key==='plus jakarta sans') return 'Plus Jakarta Sans';
+  if(key==='archivo') return 'Archivo';
+  return fallback;
+}
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -38,6 +50,19 @@ const STORE = Object.freeze({
     columns: Math.max(2, Math.min(6, parseInt(String(process.env.STORE_COLUMNS || 5), 10) || 5)),
     density: ['compact', 'comfortable'].includes(String(process.env.STORE_DENSITY || 'compact').toLowerCase()) ? String(process.env.STORE_DENSITY || 'compact').toLowerCase() : 'compact',
     hero: !['0','false','off','no'].includes(String(process.env.STORE_HERO || 'true').toLowerCase()),
+  },
+  branding: {
+    mark: String(process.env.STORE_BRAND_MARK || 'V').trim().slice(0,2) || 'V',
+    subtitle: String(process.env.STORE_BRAND_SUBTITLE || 'PRODUK DIGITAL').trim().slice(0,60) || 'PRODUK DIGITAL',
+    logo_url: String(process.env.STORE_LOGO_URL || '').trim(),
+    hero_title: String(process.env.STORE_HERO_TITLE || 'Produk digital premium, instant delivery, full branding.').trim(),
+    hero_subtitle: String(process.env.STORE_HERO_SUBTITLE || 'Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.').trim(),
+    hero_badges: envList(process.env.STORE_HERO_BADGES || 'Stok live,Auto claim,Checkout cepat,Branding full VanzShop').slice(0,8),
+    hero_slides: envList(process.env.STORE_HERO_SLIDES || '/assets/showcase/chatgpt.jpg,/assets/showcase/canva.jpg,/assets/showcase/netflix.jpg,/assets/showcase/spotify.jpg,/assets/showcase/youtube.jpg').slice(0,10),
+    footer_note: String(process.env.STORE_FOOTER_NOTE || 'Live stock · auto claim · pembayaran instan').trim(),
+    receipt_note: String(process.env.STORE_RECEIPT_NOTE || 'Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.').trim(),
+    body_font: envFont(process.env.STORE_FONT_BODY, 'Plus Jakarta Sans'),
+    display_font: envFont(process.env.STORE_FONT_DISPLAY, 'Archivo'),
   },
 });
 
