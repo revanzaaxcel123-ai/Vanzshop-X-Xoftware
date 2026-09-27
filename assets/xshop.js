@@ -25,7 +25,7 @@ const DEFAULT_STORE = {
   limits:{registration_per_minute:3,deposit_min:1000,deposit_max:1000000,stock_accounts_per_request:100,variations_per_product:30,products_per_page:20,title_max:100,description_max:5000,terms_max:5000,sku_min:3,sku_max:50}
 };
 const state = {
-  owner:[], reseller:[], source:'all', q:'', sort:'store',
+  owner:[], source:'all', q:'', sort:'store', catalogSummary:null,
   product:null, variantId:null, qty:1, busy:false, catalogLoaded:false,
   store: typeof structuredClone === 'function' ? structuredClone(DEFAULT_STORE) : JSON.parse(JSON.stringify(DEFAULT_STORE))
 };
@@ -143,14 +143,10 @@ function productStock(p){
   return vs.reduce((n,v)=>n+Number(v?.stock_count??v?.stock??0),0);
 }
 const variants=p=>Array.isArray(p?.variations)?p.variations:[];
-function allProducts(){
-  const seen=new Set(), out=[];
-  [...state.owner,...state.reseller].forEach(p=>{ const k=`${p.source}:${p.id??p.code}`; if(!seen.has(k)){seen.add(k);out.push(p);} });
-  return out;
-}
-function getProduct(source,id){ return (source==='reseller'?state.reseller:state.owner).find(p=>String(p.id)===String(id)||String(p.code)===String(id)); }
-function isOrderSupplier(p){ return p?.source==='owner' && Boolean(p?.is_reseller); }
-function sourceLabel(p){ return p?.source==='reseller' ? 'H2H' : (isOrderSupplier(p) ? 'Supplier' : 'Premium'); }
+function allProducts(){ return state.owner.slice(); }
+function getProduct(source,id){ return state.owner.find(p=>String(p.id)===String(id)||String(p.code)===String(id)); }
+function isOrderSupplier(p){ return Boolean(p?.is_reseller); }
+function sourceLabel(p){ return isOrderSupplier(p) ? 'Supplier' : 'Owner'; }
 function stockLabel(stock){
   if(stock===0)return{text:'Stok habis',cls:'out'};
   if(stock!=null&&stock<5)return{text:`Sisa ${stock}`,cls:'low'};
@@ -191,8 +187,8 @@ async function loadCatalog(){
   app.innerHTML='<div class="boot-screen"><div class="loader"></div><span>Memuat VanzShop...</span></div>';
   try{
     const d=await api('init');
-    state.owner=Array.isArray(d.owner_products)?d.owner_products:[];
-    state.reseller=Array.isArray(d.reseller_products)?d.reseller_products:[];
+    state.owner=Array.isArray(d.products)?d.products:[];
+    state.catalogSummary=d.catalog||null;
     state.store=mergeStore(d.store||DEFAULT_STORE);
     state.catalogLoaded=true;
     applyAppearance();
@@ -203,7 +199,7 @@ async function loadCatalog(){
     $('#retry').onclick=loadCatalog;return;
   }
   const hero=state.store.appearance?.hero!==false?`<section class="hero wrap"><div class="hero-copy"><span class="section-kicker">${esc(state.store.name)} · katalog live</span><h1>Produk digital <span>siap dipakai.</span></h1><p>${esc(state.store.tagline)}</p><div class="hero-pills"><span>Stok live</span><span>QRIS otomatis</span><span>User Xoftware</span></div></div><div class="hero-side"><div class="hero-card"><small>${esc(state.store.name)}</small><strong>Simple.</strong><span>Ringkas. Cepat. Jelas.</span></div></div></section>`:'';
-  shell(`<main class="page">${hero}<section class="catalog wrap"><div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">${allProducts().length}</b> produk</span><span>stok live</span></div></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-filter="all">Semua</button><button class="chip" data-filter="owner">Premium</button><button class="chip" data-filter="reseller">Partner</button></div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk..."></label><select id="sort" class="sort"><option value="store">Urutan toko</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section></main>`,'catalog');
+  shell(`<main class="page">${hero}<section class="catalog wrap"><div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">${allProducts().length}</b> produk</span><span><b>${esc(state.catalogSummary?.known_stock_total??'—')}</b> stok terhitung</span><span>${esc(state.catalogSummary?.method||'GET')} /v1/product</span></div></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-filter="all">Semua</button><button class="chip" data-filter="owner">Owner</button><button class="chip" data-filter="supplier">Supplier</button></div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk..."></label><select id="sort" class="sort"><option value="store">Urutan toko</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section></main>`,'catalog');
   $('#search').oninput=e=>{state.q=e.target.value.toLowerCase();drawGrid();};
   $('#sort').onchange=e=>{state.sort=e.target.value;drawGrid();};
   $$('.chip').forEach(b=>b.onclick=()=>{state.source=b.dataset.filter;$$('.chip').forEach(x=>x.classList.toggle('active',x===b));drawGrid();});
@@ -211,7 +207,8 @@ async function loadCatalog(){
 }
 function drawGrid(){
   let list=allProducts();
-  if(state.source!=='all')list=list.filter(p=>p.source===state.source);
+  if(state.source==='owner')list=list.filter(p=>!p.is_reseller);
+  else if(state.source==='supplier')list=list.filter(p=>Boolean(p.is_reseller));
   if(state.q)list=list.filter(p=>`${p.title} ${p.code} ${p.description}`.toLowerCase().includes(state.q));
   list=list.slice();
   if(state.sort==='sold')list.sort((a,b)=>(b.sold||0)-(a.sold||0));
@@ -233,8 +230,8 @@ function profileSummary(){
 function detailHtml(p){
   const vs=variants(p),chosen=state.variantId??(vs[0]?.id??null),v=vs.find(x=>String(x.id)===String(chosen))||vs[0];state.variantId=v?.id??null;
   const price=Number(v?.price||productPrice(p)||0),stock=v?.stock??productStock(p),safeMax=stock==null?20:Math.max(1,Number(stock)||1);state.qty=Math.min(Math.max(1,state.qty),safeMax);
-  const isPartner=p.source==='reseller',orderSupplier=isOrderSupplier(p),badge=stockLabel(stock),pReady=Boolean(profile()?.verified);
-  shell(`<main class="detail wrap"><div class="crumb"><a href="#/">← Kembali</a><span>/</span><b>${esc(p.title)}</b></div><div class="detail-grid"><section class="detail-main"><div class="detail-product">${visualMarkup(p,'detail-visual')}<div class="detail-info"><div class="detail-head"><div><span class="section-kicker">${esc(brandCategory(p.title,p.code))} · ${isPartner?'reseller-h2h':orderSupplier?'supplier':'premium'}</span><h1>${esc(p.title)}</h1></div><span class="meta-stock ${badge.cls}">${esc(badge.text)}</span></div><p class="detail-desc">${esc(p.description||'Produk digital siap diproses otomatis.')}</p><div class="fact-grid"><div><small>Harga</small><strong>${money(price)}</strong></div><div><small>Stok</small><strong>${stock==null?'—':Number(stock)}</strong></div><div><small>Sumber</small><strong>${isPartner?'Reseller H2H':orderSupplier?'Supplier':'Owner'}</strong></div></div></div></div></section><aside class="buy-panel"><div class="panel-head"><h2>Pembelian</h2><span>${isPartner?'admin only':'otomatis'}</span></div>${profileSummary()}${vs.length?`<div class="step-block"><div class="step-head"><span>1</span><b>Pilih varian</b></div><div class="variant-list">${vs.map(x=>{const active=String(x.id)===String(chosen),out=x.stock!=null&&Number(x.stock)<=0;return `<button type="button" class="variant ${active?'active':''} ${out?'disabled':''}" data-variant="${esc(x.id)}" ${out?'disabled':''}><span>${esc(x.name||x.title||'Varian')}</span><span><small>${x.stock==null?'':`Stok ${Number(x.stock)}`}</small><b>${money(x.price)}</b></span></button>`;}).join('')}</div></div>`:''}<div class="step-block"><div class="step-head"><span>${vs.length?2:1}</span><b>Jumlah</b></div><div class="qty"><button id="qtyMinus" type="button">−</button><b id="qtyVal">${state.qty}</b><button id="qtyPlus" type="button">+</button></div></div><div class="step-block"><div class="step-head"><span>${vs.length?3:2}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">QR</div><div><b>${isPartner?'Reseller H2H admin-only':'QRIS'}</b><small>${isPartner?'Endpoint /v1/reseller-api/order langsung memakai reseller_saldo.':orderSupplier?'Produk supplier didukung melalui Xoftware Order API; provider dicek real-time oleh Xoftware.':'Invoice dibuat oleh Xoftware Order API.'}</small></div></div></div><div class="summary"><div><span>${esc(v?.name||v?.title||p.title)}</span><b id="sumUnit">${money(price)}</b></div><div><span>Jumlah</span><b id="sumQty">×${state.qty}</b></div><div class="summary-total"><span>Total</span><strong id="sumTotal">${money(price*state.qty)}</strong></div></div><button class="btn btn-primary btn-buy" id="buyNow" type="button" ${(!pReady||isPartner||stock===0)?'disabled':''}>${!pReady?'Daftar user sebelum checkout':isPartner?'Tidak tersedia untuk publik':stock===0?'Stok habis':'Lanjutkan pembayaran'}</button><div class="secure-note">Sender pembeli diverifikasi ke user Xoftware sebelum order.</div></aside></div></main>`,'catalog');
+  const orderSupplier=isOrderSupplier(p),badge=stockLabel(stock),pReady=Boolean(profile()?.verified);
+  shell(`<main class="detail wrap"><div class="crumb"><a href="#/">← Kembali</a><span>/</span><b>${esc(p.title)}</b></div><div class="detail-grid"><section class="detail-main"><div class="detail-product">${visualMarkup(p,'detail-visual')}<div class="detail-info"><div class="detail-head"><div><span class="section-kicker">${esc(brandCategory(p.title,p.code))} · ${orderSupplier?'supplier':'owner'}</span><h1>${esc(p.title)}</h1></div><span class="meta-stock ${badge.cls}">${esc(badge.text)}</span></div><p class="detail-desc">${esc(p.description||'Produk digital siap diproses otomatis.')}</p><div class="fact-grid"><div><small>Harga</small><strong>${money(price)}</strong></div><div><small>Stok</small><strong>${stock==null?'—':Number(stock)}</strong></div><div><small>Sumber</small><strong>${orderSupplier?'Supplier':'Owner'}</strong></div></div></div></div></section><aside class="buy-panel"><div class="panel-head"><h2>Pembelian</h2><span>otomatis</span></div>${profileSummary()}${vs.length?`<div class="step-block"><div class="step-head"><span>1</span><b>Pilih varian</b></div><div class="variant-list">${vs.map(x=>{const active=String(x.id)===String(chosen),out=x.stock!=null&&Number(x.stock)<=0;return `<button type="button" class="variant ${active?'active':''} ${out?'disabled':''}" data-variant="${esc(x.id)}" ${out?'disabled':''}><span>${esc(x.name||x.title||'Varian')}</span><span><small>${x.stock==null?'':`Stok ${Number(x.stock)}`}</small><b>${money(x.price)}</b></span></button>`;}).join('')}</div></div>`:''}<div class="step-block"><div class="step-head"><span>${vs.length?2:1}</span><b>Jumlah</b></div><div class="qty"><button id="qtyMinus" type="button">−</button><b id="qtyVal">${state.qty}</b><button id="qtyPlus" type="button">+</button></div></div><div class="step-block"><div class="step-head"><span>${vs.length?3:2}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">QR</div><div><b>QRIS</b><small>${orderSupplier?'Produk supplier ditandai is_reseller=true oleh /v1/product dan tetap diproses melalui Order API.':'Invoice dibuat oleh Xoftware Order API.'}</small></div></div></div><div class="summary"><div><span>${esc(v?.name||v?.title||p.title)}</span><b id="sumUnit">${money(price)}</b></div><div><span>Jumlah</span><b id="sumQty">×${state.qty}</b></div><div class="summary-total"><span>Total</span><strong id="sumTotal">${money(price*state.qty)}</strong></div></div><button class="btn btn-primary btn-buy" id="buyNow" type="button" ${(!pReady||stock===0)?'disabled':''}>${!pReady?'Daftar user sebelum checkout':stock===0?'Stok habis':'Lanjutkan pembayaran'}</button><div class="secure-note">Sender pembeli diverifikasi ke user Xoftware sebelum order.</div></aside></div></main>`,'catalog');
   $$('.variant').forEach(btn=>btn.onclick=()=>{state.variantId=btn.dataset.variant;state.qty=1;renderRoute();});
   $('#qtyMinus').onclick=()=>{state.qty=Math.max(1,state.qty-1);refreshTotal(p);};
   $('#qtyPlus').onclick=()=>{const raw=v?.stock??productStock(p),max=raw==null?20:Math.max(1,Math.min(20,Number(raw)||1));state.qty=Math.min(max,state.qty+1);refreshTotal(p);};
@@ -243,7 +240,6 @@ function detailHtml(p){
 function refreshTotal(p){const vs=variants(p),v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0],price=Number(v?.price||productPrice(p)||0);$('#qtyVal').textContent=state.qty;$('#sumUnit').textContent=money(price);$('#sumQty').textContent=`×${state.qty}`;$('#sumTotal').textContent=money(price*state.qty);}
 function priceFrom(p){const vs=variants(p);return Number(vs.find(x=>String(x.id)===String(state.variantId))?.price||productPrice(p)||0);}
 async function startCheckout(p){
-  if(p.source==='reseller'){toast('Produk partner memakai Reseller API yang memotong saldo toko, jadi checkout publik sengaja diblokir.',true);return;}
   const prof=profile(); if(!prof?.verified){location.hash='#/akun';return;}
   const vs=variants(p),v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0],sku=String(v?.code||p.code||'').trim();if(!sku){toast('SKU produk/varian tidak tersedia.',true);return;}
   if(state.busy)return;state.busy=true;const btn=$('#buyNow');if(btn){btn.disabled=true;btn.textContent='Memproses...';}
@@ -325,7 +321,7 @@ function showSuccess(o,accountsOverride){
 
 function adminPass(){return sessionStorage.getItem('vanz_admin_password')||'';}
 function adminTabs(active){
-  const tabs=[['overview','Ringkasan'],['users','User'],['products','Produk'],['stock','Stok'],['reseller','Reseller H2H'],['appearance','Tampilan']];
+  const tabs=[['overview','Koneksi API'],['users','User'],['products','Produk'],['stock','Stok'],['appearance','Tampilan']];
   return `<div class="admin-tabs">${tabs.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`;
 }
 async function renderAdmin(section='overview'){
@@ -336,7 +332,6 @@ async function renderAdmin(section='overview'){
   if(section==='users')return adminUsers();
   if(section==='products')return adminProducts();
   if(section==='stock')return adminStock();
-  if(section==='reseller')return adminReseller();
   if(section==='appearance')return adminAppearance();
   return adminOverview();
 }
@@ -346,8 +341,20 @@ function renderAdminLogin(){
 }
 async function adminOverview(){
   const box=$('#adminContent');
-  const h=await api('health');
-  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Status integrasi</h2><div class="kv"><span>Base URL</span><b>${esc(h.base_url)}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Admin password</span><b>${h.admin_ready?'Configured':'Missing'}</b></div><div class="kv"><span>Catalog source</span><b>${esc(h.mode)}</b></div></section><section class="admin-panel"><h2>Endpoint resmi</h2><div class="kv"><span>Order</span><b>/v1/</b></div><div class="kv"><span>Produk</span><b>/v1/products</b></div><div class="kv"><span>Reseller</span><b>/v1/reseller-api/</b></div><div class="kv"><span>Register</span><b>/v1/register</b></div></section><section class="admin-panel wide"><h2>Aturan dokumentasi Xoftware</h2><p class="muted">Checkout memverifikasi <code>sender</code> lewat <code>/v1/balance</code>. Jika belum ada, <code>/v1/register</code> dipanggil. Registrasi membutuhkan izin khusus provider dan dibatasi 3 registrasi/menit. Deposit Rp1.000–Rp1.000.000. Stok maks 100 akun/request, variasi maks 30/produk, daftar produk maks 20/page, judul maks 100 karakter, desc/snk maks 5.000, SKU 3–50 huruf/angka/dash.</p><p class="muted"><b>Produk supplier/reseller pada Order API:</b> field <code>is_reseller=true</code> tetap dapat dibeli lewat Order API; Xoftware melakukan pengecekan provider real-time. Ini berbeda dari endpoint Reseller H2H yang memakai <code>reseller_saldo</code>.</p></section></div>`;
+  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Menguji koneksi /v1/product...</span></div>';
+  try{
+    const [h,c]=await Promise.all([api('health'),adminApi('catalog_probe')]);
+    const m=c?.summary||{};
+    box.innerHTML=`<div class="admin-grid">
+      <section class="admin-panel"><h2>Koneksi Xoftware</h2><div class="kv"><span>Base URL</span><b>${esc(h.base_url)}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Katalog publik</span><b>${esc(h.catalog_endpoint)}</b></div><div class="kv"><span>Method berhasil</span><b>${esc(m.method||'—')}</b></div></section>
+      <section class="admin-panel"><h2>Sinkron katalog</h2><div class="kv"><span>Produk</span><b>${esc(m.count??0)}</b></div><div class="kv"><span>Stok terhitung</span><b>${esc(m.known_stock_total??0)}</b></div><div class="kv"><span>Stok unknown</span><b>${esc(m.unknown_stock_products??0)}</b></div><div class="kv"><span>Supplier is_reseller</span><b>${esc(m.supplier_products??0)}</b></div></section>
+      <section class="admin-panel wide"><div class="panel-title"><h2>Source of truth</h2><button id="probeAgain" class="btn btn-primary">Refresh /v1/product</button></div><p class="muted">Storefront hanya membaca katalog Order API yang terdokumentasi di README: <code>GET/POST /v1/product</code>. Produk supplier ditandai oleh field <code>is_reseller</code>. Endpoint <code>/v1/reseller-api/*</code> tidak dipakai karena detail kontraknya tidak ada di README project ini.</p><p class="muted">Manajemen katalog owner memakai <code>/v1/products</code>; stok aktif dapat dilihat lewat <code>/v1/products/:id/stocks</code>. Batas README: 20 produk/page, 100 stok/request, 30 variasi/produk.</p></section>
+      <section class="admin-panel wide"><h2>Preview data normalisasi</h2><pre>${esc(JSON.stringify((c?.products||[]).slice(0,5),null,2))}</pre></section>
+    </div>`;
+    $('#probeAgain').onclick=()=>adminOverview();
+  }catch(e){
+    box.innerHTML=`<div class="status-card bad"><b>Koneksi katalog gagal</b><span>${esc(e.message)}</span></div>`;
+  }
 }
 function adminUsers(){
   const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Register user</h2><label class="form-field"><span>Channel</span><select id="auChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="auSender" class="input big" placeholder="08... / Telegram ID"></label><label class="form-field"><span>Nama</span><input id="auName" class="input big" placeholder="Nama user"></label><button id="auRegister" class="btn btn-primary">Register ke Xoftware</button></section><section class="admin-panel"><h2>Cek user / saldo</h2><label class="form-field"><span>Sender</span><input id="auCheckSender" class="input big" placeholder="Sender terdaftar"></label><button id="auCheck" class="btn">Cek /v1/balance</button><div id="auResult" class="admin-result"></div></section></div>`;
@@ -368,11 +375,6 @@ function adminStock(){
   $('#asAdd').onclick=async()=>{try{const accounts=$('#asAccounts').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const r=await adminApi('pm_stock_add',{method:'POST',body:{product_id:$('#asProduct').value.trim(),variation_id:$('#asVariation').value.trim(),accounts}});toast(`Stok ditambahkan: ${r.total_added??accounts.length}`);}catch(e){toast(e.message,true);}};
   $('#asLoad').onclick=async()=>{try{const r=await adminApi('pm_stocks',{query:{product_id:$('#asListProduct').value.trim(),variation_id:$('#asListVariation').value.trim(),page:1,limit:100}}),data=r?.data??r,stocks=data?.stocks||[];$('#asResult').innerHTML=stocks.length?`<div class="stock-list">${stocks.map(s=>`<div class="stock-row"><span>#${esc(s.id)} · ${esc(JSON.stringify(s.value||s))}</span><button class="btn btn-sm danger as-delete" data-id="${esc(s.id)}">Hapus</button></div>`).join('')}</div>`:'<span class="muted">Stok kosong.</span>';$$('.as-delete').forEach(b=>b.onclick=async()=>{if(!confirm(`Hapus stok #${b.dataset.id}?`))return;try{await adminApi('pm_stock_delete',{method:'POST',body:{id:b.dataset.id}});b.closest('.stock-row').remove();toast('Stok dihapus.');}catch(e){toast(e.message,true);}});}catch(e){$('#asResult').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
 }
-async function adminReseller(){
-  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Saldo reseller</h2><button id="arBalance" class="btn">Cek reseller_saldo</button><div id="arBalanceResult" class="admin-result"></div></section><section class="admin-panel"><h2>Riwayat reseller</h2><button id="arHistory" class="btn">Muat transaksi</button><div id="arHistoryResult" class="admin-result"></div></section><section class="admin-panel wide"><h2>Catatan keamanan</h2><p class="muted">Tab ini khusus <code>/v1/reseller-api</code> H2H: order langsung memakai <code>reseller_saldo</code> dan dapat terikat IP whitelist. Produk supplier yang muncul dari <code>/v1/product</code> dengan <code>is_reseller=true</code> berbeda: dokumentasi menyatakan produk tersebut didukung melalui Order API dan tetap boleh checkout QRIS.</p></section></div>`;
-  $('#arBalance').onclick=async()=>{try{const r=await adminApi('reseller_balance');$('#arBalanceResult').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`;}catch(e){toast(e.message,true);}};
-  $('#arHistory').onclick=async()=>{try{const r=await adminApi('reseller_orders',{query:{page:1,limit:20}});$('#arHistoryResult').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`;}catch(e){toast(e.message,true);}};
-}
 function adminAppearance(){
   const a={...DEFAULT_STORE.appearance,...(state.store.appearance||{})},s=state.store.support||{};
   const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Tampilan & identitas toko</h2><div class="form-grid"><label class="form-field"><span>Nama toko</span><input id="aaName" class="input big" value="${esc(state.store.name)}"></label><label class="form-field"><span>Tagline</span><input id="aaTagline" class="input big" value="${esc(state.store.tagline)}"></label><label class="form-field"><span>Theme</span><select id="aaTheme" class="input big"><option value="dark" ${a.theme==='dark'?'selected':''}>Dark</option><option value="light" ${a.theme==='light'?'selected':''}>Light</option></select></label><label class="form-field"><span>Accent</span><input id="aaAccent" class="input big" type="color" value="${esc(a.accent||'#f3c74f')}"></label><label class="form-field"><span>Radius (${esc(a.radius)})</span><input id="aaRadius" type="range" min="8" max="32" value="${esc(a.radius)}"></label><label class="form-field"><span>Kolom desktop</span><input id="aaColumns" type="number" min="2" max="6" class="input big" value="${esc(a.columns)}"></label><label class="form-field"><span>Density</span><select id="aaDensity" class="input big"><option value="compact" ${a.density==='compact'?'selected':''}>Compact</option><option value="comfortable" ${a.density==='comfortable'?'selected':''}>Comfortable</option></select></label><label class="check-field"><input id="aaHero" type="checkbox" ${a.hero!==false?'checked':''}><span>Tampilkan hero</span></label><label class="form-field"><span>WhatsApp toko</span><input id="aaWa" class="input big" value="${esc(s.whatsapp||'')}"></label><label class="form-field"><span>Telegram toko</span><input id="aaTg" class="input big" value="${esc(s.telegram||'')}"></label><label class="form-field"><span>Email toko</span><input id="aaEmail" class="input big" value="${esc(s.email||'')}"></label></div><div class="button-row"><button id="aaPreview" class="btn btn-primary">Simpan preview lokal</button><button id="aaReset" class="btn">Reset preview</button><button id="aaEnv" class="btn">Generate ENV Vercel</button></div><div id="aaEnvBox"></div></section><section class="admin-panel wide"><h2>Kenapa setting global pakai ENV?</h2><p class="muted">Project ini tidak memakai database. Vercel Function tidak bisa menyimpan perubahan dashboard secara permanen ke file deployment. Preview disimpan di browser admin; untuk semua pengunjung, copy ENV yang dihasilkan ke Vercel lalu redeploy.</p></section></div>`;
@@ -384,7 +386,7 @@ function adminAppearance(){
 
 async function ensureInit(){
   if(state.catalogLoaded)return;
-  try{const d=await api('init');state.owner=Array.isArray(d.owner_products)?d.owner_products:[];state.reseller=Array.isArray(d.reseller_products)?d.reseller_products:[];state.store=mergeStore(d.store||DEFAULT_STORE);state.catalogLoaded=true;applyAppearance();}catch{}
+  try{const d=await api('init');state.owner=Array.isArray(d.products)?d.products:[];state.catalogSummary=d.catalog||null;state.store=mergeStore(d.store||DEFAULT_STORE);state.catalogLoaded=true;applyAppearance();}catch{}
 }
 async function renderRoute(){
   if(timer){clearInterval(timer);timer=null;}const h=location.hash||'#/';
