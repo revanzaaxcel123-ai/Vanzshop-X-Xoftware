@@ -22,16 +22,16 @@ const DEFAULT_STORE = {
   name:'VanzShop.com',
   tagline:'Produk digital pilihan, stok live, checkout otomatis.',
   support:{whatsapp:'',telegram:'',email:''},
-  appearance:{theme:'dark',site_theme:'gold',admin_theme:'gold',accent:'#f3c74f',custom_accent:false,radius:20,columns:5,density:'compact',hero:true},
+  appearance:{theme:'dark',site_theme:'gold',admin_theme:'gold',accent:'#f3c74f',custom_accent:false,radius:20,columns:4,density:'comfortable',hero:true},
   branding:{
     mark:'V',
     subtitle:'PRODUK DIGITAL',
     logo_url:'',
-    hero_title:'Produk digital premium, instant delivery, full branding.',
-    hero_subtitle:'Katalog live dari Xoftware, pembayaran otomatis SewaPay, dan auto-claim akun setelah payment berhasil.',
-    hero_badges:['Stok live','Auto claim','Checkout cepat','Full branding'],
-    hero_slides:['/assets/showcase/chatgpt.jpg','/assets/showcase/canva.jpg','/assets/showcase/netflix.jpg','/assets/showcase/spotify.jpg','/assets/showcase/youtube.jpg'],
-    footer_note:'Live stock · auto claim · pembayaran instan',
+    hero_title:'VanzShop — Pusat Produk Digital Termurah',
+    hero_subtitle:'Produk digital pilihan dengan stok real-time, checkout ringkas, dan pengiriman akun otomatis setelah pembayaran berhasil.',
+    hero_badges:['Harga bersaing','Stok real-time','Pembayaran aman','Proses otomatis'],
+    hero_slides:['/assets/banner/banner1.jpg','/assets/banner/banner2.jpg','/assets/banner/banner3.jpg','/assets/banner/banner4.jpg','/assets/banner/banner5.jpg'],
+    footer_note:'Produk digital hemat · stok real-time · proses otomatis',
     receipt_note:'Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.',
     body_font:'Plus Jakarta Sans',
     display_font:'Archivo'
@@ -80,7 +80,7 @@ const ADMIN_THEMES = Object.freeze({
   sand:{label:'Desert Sand',mode:'light',scene:'waves',bg:'#f7f1e8',side:'#fcf8f2',card:'#fffdf9',card2:'#faf5ec',field:'#f4ede1',text:'#2b2118',muted:'#7d6b58',accent:'#d97706',accent2:'#b45309',accent3:'#fde68a',on:'#ffffff'}
 });
 const state = {
-  owner:[], source:'all', q:'', sort:'store', catalogSummary:null,
+  owner:[], source:'all', category:'all', q:'', sort:'store', catalogSummary:null,
   product:null, variantId:null, qty:1, busy:false, catalogLoaded:false,
   store: typeof structuredClone === 'function' ? structuredClone(DEFAULT_STORE) : JSON.parse(JSON.stringify(DEFAULT_STORE))
 };
@@ -231,7 +231,7 @@ function brandCategory(name,code=''){
 function normalizeMediaUrl(v){
   let s=String(v||'').trim(); if(!s) return '';
   if(s.startsWith('//')) s=`https:${s}`;
-  return /^(https?:\/\/|data:image\/)/i.test(s)?s:'';
+  return /^(https?:\/\/|data:image\/)/i.test(s)||/^\/(?!\/)/.test(s)?s:'';
 }
 function productImage(p){
   const c=[p?.thumbnail,p?.image,p?.img,p?.product_image,p?.image_url,p?.imageUrl,p?.photo,p?.cover,p?.banner,p?.picture,p?.logo,
@@ -325,17 +325,57 @@ function renderCredentialCard(a, idx){
 function mountHeroSlider(){
   const root=$('[data-hero-slider]');
   if(!root) return;
-  const track=$('.hero-slider-track',root), slides=$$('.hero-slide',root); if(!track||slides.length<2) return;
-  let index=0;
-  const update=()=>{ slides.forEach((el,i)=>el.classList.toggle('is-center',i===index)); track.style.transform=`translateX(calc(${(100/slides.length)*(-index)}% + ${index*6}px))`; };
-  const next=()=>{ index=(index+1)%slides.length; update(); };
-  const prev=()=>{ index=(index-1+slides.length)%slides.length; update(); };
-  $('[data-slider-next]',root)?.addEventListener('click',next);
-  $('[data-slider-prev]',root)?.addEventListener('click',prev);
-  update();
-  let t=setInterval(next,3500);
-  root.addEventListener('mouseenter',()=>clearInterval(t));
-  root.addEventListener('mouseleave',()=>{clearInterval(t); t=setInterval(next,3500);});
+  const viewport=$('.campaign-slider-window',root),track=$('.campaign-slider-track',root),slides=$$('.campaign-slide',root),dots=$$('.campaign-dot',root);
+  if(!viewport||!track||!slides.length) return;
+  let index=0,timer=null,baseX=0,startX=0,moved=false,dragging=false;
+  const reduced=window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const mobile=window.matchMedia?.('(max-width: 700px)');
+  const update=(instant=false)=>{
+    const slide=slides[index];
+    baseX=-(slide.offsetLeft-(viewport.clientWidth-slide.offsetWidth)/2);
+    if(mobile?.matches){track.style.transform='none';viewport.scrollTo({left:-baseX,behavior:instant||reduced?'auto':'smooth'});}
+    else{track.style.transition=instant?'none':'';track.style.transform=`translateX(${baseX}px)`;}
+    slides.forEach((el,i)=>el.classList.toggle('is-center',i===index));
+    dots.forEach((el,i)=>{el.classList.toggle('active',i===index);el.setAttribute('aria-current',i===index?'true':'false');});
+  };
+  const go=i=>{index=(i+slides.length)%slides.length;update();};
+  const stop=()=>{if(timer){clearInterval(timer);timer=null;}};
+  const start=()=>{stop();if(!reduced&&!mobile?.matches&&slides.length>1)timer=setInterval(()=>go(index+1),4200);};
+  $('[data-slider-next]',root)?.addEventListener('click',()=>{go(index+1);start();});
+  $('[data-slider-prev]',root)?.addEventListener('click',()=>{go(index-1);start();});
+  dots.forEach((dot,i)=>dot.addEventListener('click',()=>{go(i);start();}));
+  viewport.addEventListener('pointerdown',e=>{if(mobile?.matches)return;dragging=true;moved=false;startX=e.clientX;stop();viewport.setPointerCapture?.(e.pointerId);root.classList.add('dragging');});
+  viewport.addEventListener('pointermove',e=>{if(!dragging||mobile?.matches)return;const dx=e.clientX-startX;if(Math.abs(dx)>5)moved=true;track.style.transition='none';track.style.transform=`translateX(${baseX+dx}px)`;});
+  const release=e=>{if(!dragging)return;dragging=false;root.classList.remove('dragging');const dx=e.clientX-startX,threshold=Math.min(120,slides[index].offsetWidth*.16);if(Math.abs(dx)>threshold)go(index+(dx<0?1:-1));else update();start();};
+  viewport.addEventListener('pointerup',release);viewport.addEventListener('pointercancel',release);
+  const openSlide=slide=>{if(moved||mobile?.matches)return;const q=slide.dataset.query||'';const input=$('#search');if(input&&q){input.value=q;state.q=q.toLowerCase();drawGrid();}$('#produk')?.scrollIntoView({behavior:reduced?'auto':'smooth',block:'start'});};
+  slides.forEach(slide=>{slide.addEventListener('click',()=>openSlide(slide));slide.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openSlide(slide);}});});
+  root.addEventListener('mouseenter',stop);root.addEventListener('mouseleave',start);root.addEventListener('focusin',stop);root.addEventListener('focusout',start);
+  if(window.ResizeObserver)new ResizeObserver(()=>update(true)).observe(viewport);else window.addEventListener('resize',()=>update(true));
+  requestAnimationFrame(()=>{update(true);start();});
+}
+
+function mountStorefrontExperience(){
+  $$('[data-scroll-products]').forEach(btn=>btn.onclick=()=>$('#produk')?.scrollIntoView({behavior:'smooth',block:'start'}));
+  $$('[data-scroll-how]').forEach(btn=>btn.onclick=()=>$('#cara-belanja')?.scrollIntoView({behavior:'smooth',block:'start'}));
+}
+
+function storefrontSections(){
+  return `<section class="market-section wrap" id="kenapa-vanzshop"><div class="market-heading"><div><span class="section-kicker">Kenapa VanzShop</span><h2>Belanja digital harus cepat, jelas, dan tidak bikin was-was.</h2></div><p>Kami merapikan seluruh proses dari pilih produk sampai akun diterima, supaya kamu tidak perlu pindah-pindah chat hanya untuk menyelesaikan satu pembelian.</p></div><div class="benefit-grid">
+    <article class="benefit-card"><span class="benefit-no">01</span><div class="benefit-icon">Rp</div><h3>Harga tetap masuk akal</h3><p>Produk dipilih untuk kebutuhan sehari-hari dengan harga yang kompetitif dan rincian yang mudah dibandingkan.</p></article>
+    <article class="benefit-card"><span class="benefit-no">02</span><div class="benefit-icon">↻</div><h3>Stok terlihat real-time</h3><p>Status stok dibaca langsung dari katalog, jadi keputusan belanja dibuat dari data yang sedang tersedia.</p></article>
+    <article class="benefit-card"><span class="benefit-no">03</span><div class="benefit-icon">⚡</div><h3>Proses otomatis</h3><p>Setelah pembayaran tervalidasi, sistem menyiapkan detail akun dari stok aktif tanpa alur manual yang panjang.</p></article>
+    <article class="benefit-card"><span class="benefit-no">04</span><div class="benefit-icon">✓</div><h3>Detail pembelian rapi</h3><p>Produk, status transaksi, dan hasil fulfillment ditampilkan dalam satu pengalaman yang konsisten dan mudah disalin.</p></article>
+  </div></section>
+  <section class="experience-section wrap" id="cara-belanja"><div class="experience-card"><div class="experience-copy"><span class="section-kicker">Pengalaman belanja</span><h2>Dari katalog ke akun siap pakai dalam tiga langkah.</h2><p>Tidak ada form panjang. Cari produk, selesaikan QRIS, lalu pantau hasilnya dari halaman pesanan.</p><button class="btn btn-primary" type="button" data-scroll-products>Lihat katalog</button></div><div class="experience-steps"><article><span>1</span><div><b>Pilih produk</b><p>Cari layanan dan varian yang paling sesuai kebutuhanmu.</p></div></article><article><span>2</span><div><b>Bayar dengan aman</b><p>Nominal dihitung server dan transaksi diproses melalui Sewa Pay.</p></div></article><article><span>3</span><div><b>Terima detail</b><p>Status dipantau otomatis, lalu akun tampil ketika fulfillment selesai.</p></div></article></div></div></section>
+  <section class="faq-section wrap" id="faq"><div class="faq-intro"><span class="section-kicker">FAQ</span><h2>Pertanyaan yang paling sering muncul.</h2><p>Jawaban singkat sebelum kamu mulai belanja di VanzShop.</p></div><div class="faq-list">
+    <details open><summary>Berapa lama produk dikirim?<span>+</span></summary><p>Produk diproses setelah pembayaran terverifikasi. Jika stok aktif tersedia dan koneksi provider normal, detail akun akan tampil otomatis di halaman pesanan.</p></details>
+    <details><summary>Bagaimana cara mengecek pesanan?<span>+</span></summary><p>Buka menu Pesanan pada perangkat dan browser yang sama. Status pembayaran serta hasil fulfillment akan diperbarui dari sana.</p></details>
+    <details><summary>Apakah stok yang tampil benar-benar tersedia?<span>+</span></summary><p>Jumlah stok berasal dari katalog Xoftware. Saat checkout, server memvalidasi kembali produk, harga, dan stok untuk mengurangi risiko data lama.</p></details>
+    <details><summary>Apa yang harus dilakukan jika akun belum muncul?<span>+</span></summary><p>Cek kembali status transaksi pada menu Pesanan. Jika pembayaran sudah berhasil tetapi fulfillment tertunda, gunakan retry yang tersedia atau hubungi dukungan toko.</p></details>
+    <details><summary>Apakah data pembeli aman?<span>+</span></summary><p>Kunci API dan secret pembayaran tetap berada di server. Data kontak hanya dipakai sesuai kebutuhan proses order dan dukungan.</p></details>
+  </div></section>
+  <section class="closing-cta wrap"><div><span class="section-kicker">Siap mulai?</span><h2>Satu tempat untuk kebutuhan digitalmu.</h2><p>Pilih produk, bayar, dan pantau pesanan tanpa alur yang membingungkan.</p></div><button class="btn btn-primary" type="button" data-scroll-products>Belanja sekarang</button></section>`;
 }
 function visualMarkup(p,extra=''){
   const direct=productImage(p), fallback=localBrandImage(p), cat=brandCategory(p?.title,p?.code);
@@ -355,6 +395,7 @@ function themePicker(themes,selected,name){
 function shell(content,active='catalog'){
   const p=profile();
   const logo=brandLogo();
+  const support=supportLinks();
   applyAppearance(active==='admin');
   app.innerHTML=`<div class="app-shell">
     ${themeBackground()}
@@ -369,12 +410,12 @@ function shell(content,active='catalog'){
       </nav>
     </div></header>
     ${content}
-    <footer class="site-footer"><div class="wrap footer-inner"><div><b>${esc(state.store.name)}</b><span>${esc(state.store.tagline)}</span></div><small>${esc(footerNote())}</small></div></footer>
+    <footer class="site-footer"><div class="wrap footer-grid"><div class="footer-brand"><a class="brand" href="#/">${logo?`<span class="brand-logo"><img src="${esc(logo)}" alt="${esc(state.store.name)}"></span>`:`<span class="brand-mark">${esc(brandMark())}</span>`}<span class="brand-copy"><strong>${esc(state.store.name)}</strong><small>${esc(brandSubtitle())}</small></span></a><p>VanzShop adalah pusat produk digital dengan katalog ringkas, stok real-time, dan proses pembelian yang mudah dipantau.</p></div><div class="footer-links"><b>Belanja</b><a href="#/">Katalog produk</a><a href="#/pesanan">Cek pesanan</a><a href="#/akun">Data pembeli</a></div><div class="footer-links"><b>Bantuan</b>${support||'<span>Dukungan toko dapat diatur dari dashboard admin.</span>'}</div></div><div class="wrap footer-bottom"><span>© ${new Date().getFullYear()} ${esc(state.store.name)}</span><small>${esc(footerNote())}</small></div></footer>
   </div>`;
 }
 
 async function loadCatalog(){
-  state.source='all';state.q='';state.sort='store';
+  state.source='all';state.category='all';state.q='';state.sort='store';
   app.innerHTML='<div class="boot-screen"><div class="loader"></div><span>Memuat VanzShop...</span></div>';
   try{
     const d=await api('init');
@@ -390,18 +431,24 @@ async function loadCatalog(){
     $('#retry').onclick=loadCatalog;return;
   }
   const slides=slidesList();
-  const hero=state.store.appearance?.hero!==false?`<section class="hero hero-brand wrap"><div class="hero-copy hero-copy-rich"><span class="section-kicker">${esc(state.store.name)} · full branding</span><h1>${esc(heroTitle()).replace(/\n/g,'<br>')}</h1><p>${esc(heroSubtitle())}</p><div class="hero-pills">${heroBadges().map(x=>`<span>${esc(x)}</span>`).join('')}</div><div class="hero-cta"><a class="btn btn-primary" href="#/akun">Isi data pembeli</a><a class="btn" href="#/pesanan">Lihat pesanan</a></div><div class="hero-metrics"><div><strong>${allProducts().length}</strong><span>produk aktif</span></div><div><strong>${esc(state.catalogSummary?.known_stock_total??'—')}</strong><span>stok live</span></div><div><strong>${esc(state.catalogSummary?.method||'GET')}</strong><span>sinkron katalog</span></div></div></div><div class="hero-showcase" data-hero-slider><button class="hero-arrow left" data-slider-prev aria-label="Slide sebelumnya">‹</button><div class="hero-slider-window"><div class="hero-slider-track">${slides.map((src,i)=>`<article class="hero-slide ${i===0?'is-center':''}"><img src="${esc(src)}" alt="Banner ${i+1}"></article>`).join('')}</div></div><button class="hero-arrow right" data-slider-next aria-label="Slide berikutnya">›</button></div></section>`:'';
-  shell(`<main class="page">${hero}<section class="catalog wrap"><div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">${allProducts().length}</b> produk</span><span><b>${esc(state.catalogSummary?.known_stock_total??'—')}</b> stok terhitung</span><span>${esc(state.catalogSummary?.method||'GET')} /v1/product</span></div></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-filter="all">Semua</button><button class="chip" data-filter="owner">Owner</button><button class="chip" data-filter="supplier">Supplier</button></div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk..."></label><select id="sort" class="sort"><option value="store">Urutan toko</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section></main>`,'catalog');
+  const bannerNames=['Canva Pro','CapCut Pro','ChatGPT Plus','Claude Pro','YouTube Premium'];
+  const bannerQueries=['canva','capcut','chatgpt','claude','youtube'];
+  const hero=state.store.appearance?.hero!==false?`<section class="campaign-slider wrap" data-hero-slider aria-label="Promo pilihan VanzShop"><div class="campaign-slider-window"><div class="campaign-slider-track">${slides.map((src,i)=>`<article class="campaign-slide ${i===0?'is-center':''}" data-query="${esc(bannerQueries[i]||'')}" style="--campaign-image:url('${esc(src)}')" tabindex="0" role="link" aria-label="Lihat ${esc(bannerNames[i]||`promo VanzShop ${i+1}`)}"><img src="${esc(src)}" alt="${esc(bannerNames[i]||`Promo VanzShop ${i+1}`)}" width="1600" height="639" ${i===0?'loading="eager" fetchpriority="high"':'loading="lazy"'} decoding="async"></article>`).join('')}</div></div><button class="campaign-arrow prev" type="button" data-slider-prev aria-label="Slide sebelumnya">‹</button><button class="campaign-arrow next" type="button" data-slider-next aria-label="Slide berikutnya">›</button><div class="campaign-dots">${slides.map((_,i)=>`<button class="campaign-dot ${i===0?'active':''}" type="button" aria-label="Buka slide ${i+1}" aria-current="${i===0?'true':'false'}"></button>`).join('')}</div></section>`:'';
+  const intro=`<section class="store-intro wrap"><div class="store-intro-copy"><span class="section-kicker">VanzShop.com</span><h1>${esc(heroTitle())}</h1><p>${esc(heroSubtitle())}</p><div class="intro-actions"><button class="btn btn-primary" type="button" data-scroll-products>Belanja sekarang</button><button class="btn" type="button" data-scroll-how>Cara belanja</button></div></div><div class="trust-list"><div><i>01</i><span><b>Harga bersaing</b><small>Pilihan hemat untuk kebutuhan digital</small></span></div><div><i>02</i><span><b>Stok real-time</b><small>Status produk selalu mudah dilihat</small></span></div><div><i>03</i><span><b>Checkout ringkas</b><small>Bayar dan pantau dari satu tempat</small></span></div><div><i>04</i><span><b>Auto fulfillment</b><small>Detail akun diproses setelah pembayaran</small></span></div></div></section>`;
+  const categories=[...new Set(allProducts().map(p=>brandCategory(p.title,p.code)))].sort((a,b)=>a.localeCompare(b,'id'));
+  shell(`<main class="page storefront-page">${hero}${intro}<section class="catalog wrap" id="produk"><div class="catalog-head"><div><span class="section-kicker">Katalog pilihan</span><h2>Temukan produk digital yang kamu butuhkan.</h2><p>Harga jelas, stok terlihat, dan detail produk tersusun rapi.</p></div><span class="catalog-live"><i></i> Stok diperbarui otomatis</span></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-category="all">Semua</button>${categories.map(c=>`<button class="chip" data-category="${esc(c)}">${esc(c)}</button>`).join('')}</div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk digital..."></label><select id="sort" class="sort"><option value="store">Rekomendasi</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section>${storefrontSections()}</main>`,'catalog');
   $('#search').oninput=e=>{state.q=e.target.value.toLowerCase();drawGrid();};
   $('#sort').onchange=e=>{state.sort=e.target.value;drawGrid();};
-  $$('.chip').forEach(b=>b.onclick=()=>{state.source=b.dataset.filter;$$('.chip').forEach(x=>x.classList.toggle('active',x===b));drawGrid();});
+  $$('.chip[data-category]').forEach(b=>b.onclick=()=>{state.category=b.dataset.category;$$('.chip[data-category]').forEach(x=>x.classList.toggle('active',x===b));drawGrid();});
   drawGrid();
   mountHeroSlider();
+  mountStorefrontExperience();
 }
 function drawGrid(){
   let list=allProducts();
   if(state.source==='owner')list=list.filter(p=>!p.is_reseller);
   else if(state.source==='supplier')list=list.filter(p=>Boolean(p.is_reseller));
+  if(state.category!=='all')list=list.filter(p=>brandCategory(p.title,p.code)===state.category);
   if(state.q)list=list.filter(p=>`${p.title} ${p.code} ${p.description}`.toLowerCase().includes(state.q));
   list=list.slice();
   if(state.sort==='sold')list.sort((a,b)=>(b.sold||0)-(a.sold||0));
@@ -516,25 +563,21 @@ function showSuccess(o,accountsOverride){
 function adminToken(){return sessionStorage.getItem('vanz_admin_token')||'';}
 function adminTabs(active){
   const groups=[
-    ['System', [['overview','Overview'],['api','API Health'],['payment','Sewa Pay'],['fulfillment','Fulfillment'],['diagnostics','Endpoint Lab'],['endpoint-map','API Map'],['limits','Limits']]],
-    ['Order API', [['catalog','Catalog'],['supplier','Supplier'],['users','User Tools'],['balance','Balance'],['register','Register'],['qris','QRIS'],['balance-order','Order Saldo'],['deposit-admin','Deposit'],['status-admin','Status'],['browser-orders','Browser Orders'],['webhook-info','Webhook']]],
-    ['Product Management', [['products','Products'],['product-detail','Product Detail'],['variations','Variations'],['stock','Stock'],['forms','Forms']]],
-    ['Store Tools', [['pricing','Pricing'],['appearance','Theme'],['environment','Environment'],['security','Security'],['logs','Logs']]],
+    ['Ringkasan', [['overview','Dashboard']]],
+    ['Produk', [['products','Kelola Produk'],['product-detail','Detail Produk'],['variations','Variasi'],['forms','Format Stok']]],
+    ['Stok', [['stock','Stok Masuk & Aktif'],['fulfillment','Stok Keluar']]],
+    ['Tampilan', [['appearance','Tema & Branding']]],
   ];
   return `<aside class="admin-sidebar">${groups.map(([title,items])=>`<div class="admin-nav-group"><b>${title}</b>${items.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`).join('')}</aside>`;
 }
 async function renderAdmin(section='overview'){
   if(!adminToken())return renderAdminLogin();
-  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin · ${BUILD_ID}</span><h1>VanzShop Control Center</h1><p>Semua endpoint yang terdokumentasi di README + tool operasional toko, tanpa mengarang endpoint provider.</p></div><div class="button-row"><a class="btn" href="#/">Buka toko</a><button class="btn" id="adminLogout">Keluar</button></div></div><div class="admin-layout">${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></div></main>`,'admin');
+  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard VanzShop</span><h1>Manajemen Produk & Stok</h1><p>Kelola katalog, variasi, stok masuk, dan riwayat stok keluar dari satu tempat.</p></div><div class="button-row"><a class="btn" href="#/">Lihat toko</a><button class="btn" id="adminLogout">Keluar</button></div></div><div class="admin-layout">${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></div></main>`,'admin');
   $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_token');renderAdminLogin();};
   try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_token');toast(e.message,true);return renderAdminLogin();}
   const routes={
-    overview:adminOverview, api:adminApiHealth, payment:adminSewaPay, fulfillment:adminFulfillment, diagnostics:adminDiagnostics, 'endpoint-map':adminEndpointMap, limits:adminLimits,
-    catalog:adminCatalog, supplier:adminSuppliers, users:adminUsers, balance:adminBalance, register:adminRegister,
-    qris:adminQris, 'balance-order':adminBalanceOrder, 'deposit-admin':adminDeposit, 'status-admin':adminStatus,
-    'browser-orders':adminBrowserOrders, 'webhook-info':adminWebhook,
-    products:adminProducts, 'product-detail':adminProductDetail, variations:adminVariations, stock:adminStock, forms:adminForms,
-    pricing:adminPricing, appearance:adminAppearance, environment:adminEnvironment, security:adminSecurity, logs:adminLogsView,
+    overview:adminOverview,products:adminProducts,'product-detail':adminProductDetail,variations:adminVariations,
+    stock:adminStock,fulfillment:adminFulfillment,forms:adminForms,appearance:adminAppearance,
   };
   return (routes[section]||adminOverview)();
 }
@@ -560,20 +603,8 @@ function renderAdminLogin(){
 }
 async function adminOverview(){
   const box=$('#adminContent');
-  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Menguji koneksi /v1/product...</span></div>';
-  try{
-    const [h,c]=await Promise.all([api('health'),adminApi('catalog_probe')]);
-    const m=c?.summary||{};
-    box.innerHTML=`<div class="admin-grid">
-      <section class="admin-panel"><h2>Koneksi Xoftware</h2><div class="kv"><span>Build aktif</span><b>${esc(h.build||BUILD_ID)}</b></div><div class="kv"><span>Base URL</span><b>${esc(h.base_url)}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Katalog publik</span><b>${esc(h.catalog_endpoint)}</b></div><div class="kv"><span>Method berhasil</span><b>${esc(m.method||'—')}</b></div></section>
-      <section class="admin-panel"><h2>Sinkron katalog</h2><div class="kv"><span>Produk</span><b>${esc(m.count??0)}</b></div><div class="kv"><span>Stok terhitung</span><b>${esc(m.known_stock_total??0)}</b></div><div class="kv"><span>Stok unknown</span><b>${esc(m.unknown_stock_products??0)}</b></div><div class="kv"><span>Supplier is_reseller</span><b>${esc(m.supplier_products??0)}</b></div></section>
-      <section class="admin-panel wide"><div class="panel-title"><h2>Source of truth</h2><button id="probeAgain" class="btn btn-primary">Refresh /v1/product</button></div><p class="muted">Storefront hanya membaca katalog Order API yang terdokumentasi di README: <code>GET/POST /v1/product</code>. Produk supplier ditandai oleh field <code>is_reseller</code>. Endpoint <code>/v1/reseller-api/*</code> tidak dipakai karena detail kontraknya tidak ada di README project ini.</p><p class="muted">Manajemen katalog owner memakai <code>/v1/products</code>; stok aktif dapat dilihat lewat <code>/v1/products/:id/stocks</code>. Batas README: 20 produk/page, 100 stok/request, 30 variasi/produk.</p></section>
-      <section class="admin-panel wide"><h2>Preview data normalisasi</h2><pre>${esc(JSON.stringify((c?.products||[]).slice(0,5),null,2))}</pre></section>
-    </div>`;
-    $('#probeAgain').onclick=()=>adminOverview();
-  }catch(e){
-    box.innerHTML=`<div class="status-card bad"><b>Koneksi katalog gagal</b><span>${esc(e.message)}</span></div>`;
-  }
+  const products=allProducts(),known=products.filter(p=>productStock(p)!=null),stock=known.reduce((n,p)=>n+Math.max(0,Number(productStock(p))||0),0),variations=products.reduce((n,p)=>n+variants(p).length,0),low=products.filter(p=>productStock(p)!=null&&productStock(p)<=5).sort((a,b)=>productStock(a)-productStock(b)).slice(0,8);
+  box.innerHTML=`<div class="admin-grid inventory-dashboard"><section class="admin-panel wide admin-welcome"><div><span class="section-kicker">Ringkasan toko</span><h2>Semua yang penting, tanpa menu teknis yang ramai.</h2><p class="muted">Pantau katalog dan stok, lalu masuk langsung ke pekerjaan yang ingin kamu selesaikan.</p></div><a class="btn btn-primary" href="#/admin/products">Tambah produk</a></section><section class="admin-panel wide"><div class="metric-grid"><div class="metric-card"><small>Produk aktif</small><strong>${products.length}</strong></div><div class="metric-card"><small>Total variasi</small><strong>${variations}</strong></div><div class="metric-card"><small>Stok terhitung</small><strong>${stock}</strong></div><div class="metric-card"><small>Stok menipis</small><strong>${low.length}</strong></div></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Aksi cepat</h2><p class="muted">Jalur singkat untuk pekerjaan harian toko.</p></div></div><div class="quick-action-grid"><a href="#/admin/products"><span>01</span><b>Kelola produk</b><small>Buat, edit, tampilkan, atau hapus produk.</small></a><a href="#/admin/variations"><span>02</span><b>Atur variasi</b><small>Kelola paket, durasi, harga, dan SKU.</small></a><a href="#/admin/stock"><span>03</span><b>Masukkan stok</b><small>Tambah akun dan lihat stok aktif.</small></a><a href="#/admin/fulfillment"><span>04</span><b>Lihat stok keluar</b><small>Pantau akun yang sudah dikirim ke pembeli.</small></a></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Perlu perhatian</h2><p class="muted">Produk dengan stok lima atau kurang.</p></div><a class="btn btn-sm" href="#/admin/stock">Kelola stok</a></div>${low.length?`<div class="low-stock-list">${low.map(p=>`<div><span><b>${esc(p.title)}</b><small>${esc(p.code||'Tanpa SKU')}</small></span><strong class="${productStock(p)===0?'out':''}">${productStock(p)===0?'Habis':`${productStock(p)} tersisa`}</strong></div>`).join('')}</div>`:'<div class="status-card good"><b>Stok aman</b><span>Tidak ada produk yang perlu ditambah saat ini.</span></div>'}</section></div>`;
 }
 
 function diagnosticError(e){
@@ -632,19 +663,19 @@ async function adminProducts(){
   $('#apLoad').onclick=load;$('#apSearch').onkeydown=e=>{if(e.key==='Enter')load();};$('#apVarFilter').onchange=load;$('#apNew').onclick=()=>showProductForm();load();
 }
 function adminStock(){
-  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Tambah stok</h2><label class="form-field"><span>Product ID</span><input id="asProduct" class="input big" inputmode="numeric"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asVariation" class="input big" inputmode="numeric"></label><label class="form-field"><span>Accounts — satu baris satu stok</span><textarea id="asAccounts" class="input textarea tall" placeholder="email|password\nemail2|password2"></textarea></label><button id="asAdd" class="btn btn-primary">Tambah stok</button></section><section class="admin-panel"><h2>Lihat stok aktif</h2><label class="form-field"><span>Product ID</span><input id="asListProduct" class="input big" inputmode="numeric"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asListVariation" class="input big" inputmode="numeric"></label><button id="asLoad" class="btn">Muat stok</button><div id="asResult" class="admin-result"></div></section></div>`;
+  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><span class="section-kicker">Stok masuk</span><h2>Tambahkan akun baru</h2><p class="muted">Masukkan satu akun per baris. Gunakan format yang sama dengan form produkmu, misalnya <code>email|password</code>.</p><label class="form-field"><span>Product ID</span><input id="asProduct" class="input big" inputmode="numeric" placeholder="Contoh: 128"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asVariation" class="input big" inputmode="numeric" placeholder="Kosongkan untuk produk tanpa variasi"></label><label class="form-field"><span>Data akun — satu baris satu stok</span><textarea id="asAccounts" class="input textarea tall" placeholder="email|password\nemail2|password2"></textarea></label><button id="asAdd" class="btn btn-primary">Masukkan stok</button></section><section class="admin-panel"><span class="section-kicker">Stok aktif</span><h2>Lihat dan keluarkan stok</h2><p class="muted">Cari stok berdasarkan produk. Gunakan hapus hanya untuk akun yang memang ingin dikeluarkan dari inventori.</p><label class="form-field"><span>Product ID</span><input id="asListProduct" class="input big" inputmode="numeric" placeholder="Contoh: 128"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asListVariation" class="input big" inputmode="numeric"></label><button id="asLoad" class="btn">Tampilkan stok aktif</button><div id="asResult" class="admin-result"></div></section></div>`;
   $('#asAdd').onclick=async()=>{try{const accounts=$('#asAccounts').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const r=await adminApi('pm_stock_add',{method:'POST',body:{product_id:$('#asProduct').value.trim(),variation_id:$('#asVariation').value.trim(),accounts}});toast(`Stok ditambahkan: ${r.total_added??accounts.length}`);}catch(e){toast(e.message,true);}};
-  $('#asLoad').onclick=async()=>{try{const r=await adminApi('pm_stocks',{query:{product_id:$('#asListProduct').value.trim(),variation_id:$('#asListVariation').value.trim(),page:1,limit:100}}),data=r?.data??r,stocks=data?.stocks||[];$('#asResult').innerHTML=stocks.length?`<div class="stock-list">${stocks.map(s=>`<div class="stock-row"><span>#${esc(s.id)} · ${esc(JSON.stringify(s.value||s))}</span><button class="btn btn-sm danger as-delete" data-id="${esc(s.id)}">Hapus</button></div>`).join('')}</div>`:'<span class="muted">Stok kosong.</span>';$$('.as-delete').forEach(b=>b.onclick=async()=>{if(!confirm(`Hapus stok #${b.dataset.id}?`))return;try{await adminApi('pm_stock_delete',{method:'POST',body:{id:b.dataset.id}});b.closest('.stock-row').remove();toast('Stok dihapus.');}catch(e){toast(e.message,true);}});}catch(e){$('#asResult').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
+  $('#asLoad').onclick=async()=>{try{const r=await adminApi('pm_stocks',{query:{product_id:$('#asListProduct').value.trim(),variation_id:$('#asListVariation').value.trim(),page:1,limit:100}}),data=r?.data??r,stocks=data?.stocks||[];$('#asResult').innerHTML=stocks.length?`<div class="stock-list">${stocks.map(s=>`<div class="stock-row"><span>#${esc(s.id)} · ${esc(JSON.stringify(s.value||s))}</span><button class="btn btn-sm danger as-delete" data-id="${esc(s.id)}">Keluarkan</button></div>`).join('')}</div>`:'<span class="muted">Stok aktif kosong.</span>';$$('.as-delete').forEach(b=>b.onclick=async()=>{if(!confirm(`Keluarkan stok #${b.dataset.id} dari inventori?`))return;try{await adminApi('pm_stock_delete',{method:'POST',body:{id:b.dataset.id}});b.closest('.stock-row').remove();toast('Stok dikeluarkan dari inventori.');}catch(e){toast(e.message,true);}});}catch(e){$('#asResult').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
 }
 async function adminFulfillment(){
   const box=$('#adminContent');
-  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Memuat fulfillment ledger...</span></div>';
+  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Memuat riwayat stok keluar...</span></div>';
   try{
-    const r=await adminApi('admin_fulfillment_list',{query:{limit:120}}),st=r?.stats||{},engine=r?.engine||{},rows=Array.isArray(r?.receipts)?r.receipts:[];
-    box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><div class="panel-title"><div><h2>Fulfillment Ledger</h2><p class="muted">Ledger Redis adalah catatan penjualan akun setelah payment. Record stok Xoftware yang terkirim dihapus dari Xoftware dan stock_record_id dicatat di sini.</p></div><span class="build-chip">ANTI DOUBLE</span></div><div class="stat-grid"><div class="stat-card"><span>Fulfilled</span><strong>${esc(st.fulfilled??0)}</strong></div><div class="stat-card"><span>Waiting stock</span><strong>${esc(st.waiting_stock??0)}</strong></div><div class="stat-card"><span>Retryable</span><strong>${esc(st.retryable_error??0)}</strong></div><div class="stat-card"><span>Akun terkirim</span><strong>${esc(st.accounts_delivered??0)}</strong></div></div><div class="kv"><span>Redis</span><b>${engine.store_ready?'Connected':'Missing'}</b></div><div class="kv"><span>Lock TTL</span><b>${esc(engine.lock_ttl_seconds??'—')}s</b></div><div class="kv"><span>Payment hold TTL</span><b>${esc(engine.hold_ttl_seconds??'—')}s</b></div><div class="kv"><span>Strict uniqueness</span><b>${engine.strict_uniqueness_scope==='vanzshop-exclusive-stock-source'?'ACTIVE':'BEST EFFORT'}</b></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Cari / repair transaksi</h2><p class="muted">Masukkan reference VZ-... untuk lihat receipt atau retry fulfillment secara aman.</p></div></div><div class="admin-toolbar"><input id="afReference" class="input big" placeholder="VZ-..."><button id="afGet" class="btn">Cari</button><button id="afRetry" class="btn btn-primary">Retry paid order</button></div><div id="afLookup" class="admin-result"></div></section><section class="admin-panel wide"><h2>Transaksi terbaru</h2><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Reference</th><th>Status</th><th>Produk</th><th>Qty</th><th>Stock ID</th><th>Fulfilled</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td><button class="link-btn af-open" data-ref="${esc(x.reference)}">${esc(x.reference)}</button></td><td><span class="status-pill ${x.status==='fulfilled'?'good':x.status==='waiting_stock'?'warn':'bad'}">${esc(x.status||'—')}</span></td><td>${esc(x.product_title||x.code||x.product_id||'—')}</td><td>${esc(x.quantity??'—')}</td><td>${esc((x.accounts||[]).map(a=>a.stock_record_id).join(', ')||'—')}</td><td>${esc(x.fulfilled_at||'—')}</td></tr>`).join(''):'<tr><td colspan="6">Belum ada receipt.</td></tr>'}</tbody></table></div></section><section class="admin-panel wide"><h2>Aturan anti-double v15</h2><ol class="admin-steps"><li>Stock record di-soft-reserve di Redis <b>sebelum QRIS dibuat</b>.</li><li>Payment reference punya order lock sendiri.</li><li>Setiap stock_record_id punya owner reference sendiri.</li><li>Sesudah COMPLETED, record stok dihapus dari Xoftware lalu receipt disimpan ke Redis.</li><li>Webhook/polling/reload mengembalikan receipt lama, bukan claim akun baru.</li></ol><div class="doc-note"><b>Batas jaminan</b><span>Strict no-double berlaku kalau stok Xoftware itu eksklusif dipakai VanzShop atau semua channel lain memakai reservation Redis yang sama. Kalau ada bot/aplikasi lain mengambil stok Xoftware yang sama tanpa lewat lock ini, API DELETE Xoftware sendiri tidak menyediakan atomic reservation lintas sistem.</span></div></section></div>`;
-    const lookup=async(retry=false)=>{const ref=$('#afReference').value.trim();if(!ref){toast('Reference wajib diisi.',true);return;}try{const d=retry?await adminApi('admin_fulfillment_retry',{method:'POST',body:{reference:ref}}):await adminApi('admin_fulfillment_get',{query:{reference:ref}});diagnosticOutput('afLookup',d);if(retry)toast('Retry selesai diproses.');}catch(e){diagnosticOutput('afLookup',diagnosticError(e),true);}};
-    $('#afGet').onclick=()=>lookup(false);$('#afRetry').onclick=()=>lookup(true);$$('.af-open').forEach(b=>b.onclick=()=>{$('#afReference').value=b.dataset.ref;lookup(false);});
-  }catch(e){box.innerHTML=`<div class="status-card bad"><b>Fulfillment ledger gagal dimuat</b><span>${esc(e.message)}</span></div>`;}
+    const r=await adminApi('admin_fulfillment_list',{query:{limit:120}}),st=r?.stats||{},rows=Array.isArray(r?.receipts)?r.receipts:[];
+    box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><div class="panel-title"><div><span class="section-kicker">Stok keluar</span><h2>Riwayat akun yang sudah diproses</h2><p class="muted">Gunakan halaman ini untuk memantau stok yang keluar melalui pesanan dan menemukan transaksi tertentu.</p></div><span class="build-chip">${rows.length} transaksi</span></div><div class="stat-grid"><div class="stat-card"><span>Berhasil dikirim</span><strong>${esc(st.fulfilled??0)}</strong></div><div class="stat-card"><span>Menunggu stok</span><strong>${esc(st.waiting_stock??0)}</strong></div><div class="stat-card"><span>Perlu perhatian</span><strong>${esc(st.retryable_error??0)}</strong></div><div class="stat-card"><span>Total akun keluar</span><strong>${esc(st.accounts_delivered??0)}</strong></div></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Cari transaksi</h2><p class="muted">Masukkan reference pesanan untuk melihat rincian stok yang keluar.</p></div></div><div class="admin-toolbar stock-search"><input id="afReference" class="input big" placeholder="Contoh: VZ-..."><button id="afGet" class="btn btn-primary">Cari transaksi</button></div><div id="afLookup" class="admin-result"></div></section><section class="admin-panel wide"><h2>Transaksi terbaru</h2><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Reference</th><th>Status</th><th>Produk</th><th>Jumlah</th><th>ID stok keluar</th><th>Waktu keluar</th></tr></thead><tbody>${rows.length?rows.map(x=>`<tr><td><button class="link-btn af-open" data-ref="${esc(x.reference)}">${esc(x.reference)}</button></td><td><span class="status-pill ${x.status==='fulfilled'?'good':x.status==='waiting_stock'?'warn':'bad'}">${esc(x.status||'—')}</span></td><td>${esc(x.product_title||x.code||x.product_id||'—')}</td><td>${esc(x.quantity??'—')}</td><td>${esc((x.accounts||[]).map(a=>a.stock_record_id).join(', ')||'—')}</td><td>${esc(x.fulfilled_at||'—')}</td></tr>`).join(''):'<tr><td colspan="6">Belum ada stok keluar yang tercatat.</td></tr>'}</tbody></table></div></section></div>`;
+    const lookup=async()=>{const ref=$('#afReference').value.trim();if(!ref){toast('Reference wajib diisi.',true);return;}try{diagnosticOutput('afLookup',await adminApi('admin_fulfillment_get',{query:{reference:ref}}));}catch(e){diagnosticOutput('afLookup',diagnosticError(e),true);}};
+    $('#afGet').onclick=lookup;$$('.af-open').forEach(b=>b.onclick=()=>{$('#afReference').value=b.dataset.ref;lookup();});
+  }catch(e){box.innerHTML=`<div class="status-card bad"><b>Riwayat stok keluar gagal dimuat</b><span>${esc(e.message)}</span></div>`;}
 }
 function adminAppearance(){
   const a={...DEFAULT_STORE.appearance,...(state.store.appearance||{})},s=state.store.support||{},b={...DEFAULT_STORE.branding,...(state.store.branding||{})};
@@ -837,7 +868,7 @@ function adminVariations(){
 
 async function adminForms(){
   const box=$('#adminContent');box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Memuat forms...</span></div>';
-  try{const r=await adminApi('pm_forms'),items=Array.isArray(r?.data)?r.data:(Array.isArray(r)?r:[]);box.innerHTML=`<section class="admin-panel wide"><div class="panel-title"><div><h2>Template Form Stok</h2><p class="muted">Gunakan Form ID saat create produk/variasi agar format pipe stok sesuai template Xoftware.</p></div><span class="build-chip">${items.length} forms</span></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name</th><th>Fields</th><th>Required</th><th>Contoh format stok</th></tr></thead><tbody>${items.map(f=>`<tr><td>${esc(f.id)}</td><td>${esc(f.name)}</td><td>${esc((f.fields||[]).join(' | '))}</td><td>${esc((f.required_fields||[]).join(' | '))}</td><td><code>${esc((f.fields||[]).map((x,i)=>`${String(x).toLowerCase().replace(/\s+/g,'')}${i+1}`).join('|'))}</code></td></tr>`).join('')}</tbody></table></div><div class="admin-result"><pre>${esc(JSON.stringify(r,null,2))}</pre></div></section>`;}catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
+  try{const r=await adminApi('pm_forms'),items=Array.isArray(r?.data)?r.data:(Array.isArray(r)?r:[]);box.innerHTML=`<section class="admin-panel wide"><div class="panel-title"><div><span class="section-kicker">Format stok</span><h2>Template data akun</h2><p class="muted">Pilih Form ID yang sesuai saat membuat produk atau variasi, lalu masukkan stok mengikuti urutan field di bawah.</p></div><span class="build-chip">${items.length} format</span></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Nama format</th><th>Urutan data</th><th>Wajib diisi</th><th>Contoh satu baris stok</th></tr></thead><tbody>${items.map(f=>`<tr><td>${esc(f.id)}</td><td><b>${esc(f.name)}</b></td><td>${esc((f.fields||[]).join(' → '))}</td><td>${esc((f.required_fields||[]).join(', ')||'—')}</td><td><code>${esc((f.fields||[]).map((x,i)=>`${String(x).toLowerCase().replace(/\s+/g,'')}${i+1}`).join('|'))}</code></td></tr>`).join('')}</tbody></table></div></section>`;}catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
 }
 
 function adminPricing(){
