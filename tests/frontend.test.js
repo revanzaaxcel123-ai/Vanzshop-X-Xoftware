@@ -12,7 +12,7 @@ assert.match(js,/adminBalanceOrder/);
 assert.match(js,/adminVariations/);
 assert.match(js,/adminEnvironment/);
 assert.match(js,/diag_product/);
-assert.match(html,/xshop\.js\?v=23/);
+assert.match(html,/xshop\.js\?v=24/);
 assert.equal(vercel.cleanUrls,true);
 assert.ok(fs.existsSync(require('path').join(__dirname,'../admin.html')));
 console.log('PASS frontend.test.js');

@@ -34,6 +34,12 @@ function envFont(v, fallback){
   if(key==='archivo') return 'Archivo';
   return fallback;
 }
+const SITE_THEME_KEYS = new Set(['gold','pearl','aurora','galaxy','ocean','sunset','synth','neon','forest','ruby','matrix','mono','sakura','arctic','mint','candy','lavender','desert','paper']);
+const ADMIN_THEME_KEYS = new Set(['gold','latte','ocean','emerald','nebula','sunset','neon','graphite','ruby','sakura','arctic','mint','lavender','sand']);
+const SITE_THEME_RAW = String(process.env.STORE_SITE_THEME || '').trim().toLowerCase();
+const ADMIN_THEME_RAW = String(process.env.STORE_ADMIN_THEME || '').trim().toLowerCase();
+const STORE_ACCENT_RAW = String(process.env.STORE_ACCENT || '').trim().toLowerCase();
+const LEGACY_THEME = String(process.env.STORE_THEME || 'dark').trim().toLowerCase();
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -44,8 +50,11 @@ const STORE = Object.freeze({
     email: String(process.env.STORE_EMAIL || '').trim(),
   },
   appearance: {
-    theme: ['dark', 'light'].includes(String(process.env.STORE_THEME || 'dark').toLowerCase()) ? String(process.env.STORE_THEME || 'dark').toLowerCase() : 'dark',
-    accent: /^#[0-9a-f]{6}$/i.test(String(process.env.STORE_ACCENT || '')) ? String(process.env.STORE_ACCENT).toLowerCase() : '#f3c74f',
+    theme: ['dark', 'light'].includes(LEGACY_THEME) ? LEGACY_THEME : 'dark',
+    site_theme: SITE_THEME_KEYS.has(SITE_THEME_RAW) ? SITE_THEME_RAW : (LEGACY_THEME === 'light' ? 'pearl' : 'gold'),
+    admin_theme: ADMIN_THEME_KEYS.has(ADMIN_THEME_RAW) ? ADMIN_THEME_RAW : (LEGACY_THEME === 'light' ? 'latte' : 'gold'),
+    accent: /^#[0-9a-f]{6}$/i.test(STORE_ACCENT_RAW) ? STORE_ACCENT_RAW : '#f3c74f',
+    custom_accent: /^#[0-9a-f]{6}$/i.test(STORE_ACCENT_RAW),
     radius: Math.max(8, Math.min(32, parseInt(String(process.env.STORE_RADIUS || 20), 10) || 20)),
     columns: Math.max(2, Math.min(6, parseInt(String(process.env.STORE_COLUMNS || 5), 10) || 5)),
     density: ['compact', 'comfortable'].includes(String(process.env.STORE_DENSITY || 'compact').toLowerCase()) ? String(process.env.STORE_DENSITY || 'compact').toLowerCase() : 'compact',

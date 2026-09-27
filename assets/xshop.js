@@ -22,7 +22,7 @@ const DEFAULT_STORE = {
   name:'VanzShop.com',
   tagline:'Produk digital pilihan, stok live, checkout otomatis.',
   support:{whatsapp:'',telegram:'',email:''},
-  appearance:{theme:'dark',accent:'#f3c74f',radius:20,columns:5,density:'compact',hero:true},
+  appearance:{theme:'dark',site_theme:'gold',admin_theme:'gold',accent:'#f3c74f',custom_accent:false,radius:20,columns:5,density:'compact',hero:true},
   branding:{
     mark:'V',
     subtitle:'PRODUK DIGITAL',
@@ -41,6 +41,44 @@ const DEFAULT_STORE = {
   checkout:{mode:'sewapay',fulfillment:'disabled-until-redis-configured',shared_sender_configured:false,shared_channel:'whatsapp',shared_sender_masked:''},
   limits:{registration_per_minute:3,deposit_min:1000,deposit_max:1000000,stock_accounts_per_request:100,variations_per_product:30,products_per_page:20,title_max:100,description_max:5000,terms_max:5000,sku_min:3,sku_max:50}
 };
+
+const SITE_THEMES = Object.freeze({
+  gold:{label:'Golden Night',mode:'dark',scene:'orbs',bg:'#0a0908',bg2:'#12110f',accent:'#e9b949',accent2:'#c8912a',accent3:'#fff0c2',on:'#1a1307',c2:'#c8912a',c3:'#7a5a1a',orb1:'#2a2723',orb2:'#0c0b0a'},
+  pearl:{label:'Cream Pearl',mode:'light',scene:'orbs',bg:'#f6f0e4',bg2:'#efe6d4',accent:'#b98423',accent2:'#8f6212',accent3:'#fff3cf',on:'#1a1307',c2:'#e9b949',c3:'#d9c7a0',orb1:'#fffaf0',orb2:'#e3d5b8'},
+  aurora:{label:'Aurora Borealis',mode:'dark',scene:'aurora',bg:'#040a10',bg2:'#0a1822',accent:'#34d399',accent2:'#10b981',accent3:'#a7f3d0',on:'#03140c',c2:'#22d3ee',c3:'#8b5cf6',orb1:'#13222b',orb2:'#050b12'},
+  galaxy:{label:'Purple Galaxy',mode:'dark',scene:'aurora',bg:'#07051a',bg2:'#120a2e',accent:'#a78bfa',accent2:'#7c3aed',accent3:'#ede9fe',on:'#ffffff',c2:'#ec4899',c3:'#3b82f6',orb1:'#1e1640',orb2:'#07051a'},
+  ocean:{label:'Deep Ocean',mode:'dark',scene:'waves',bg:'#031020',bg2:'#072543',accent:'#38bdf8',accent2:'#0284c7',accent3:'#e0f2fe',on:'#04121f',c2:'#2563eb',c3:'#06b6d4',orb1:'#0b2a4a',orb2:'#031020'},
+  sunset:{label:'Tropical Sunset',mode:'dark',scene:'waves',bg:'#170914',bg2:'#2c0f22',accent:'#fb923c',accent2:'#f43f5e',accent3:'#ffedd5',on:'#2a0a0f',c2:'#f43f5e',c3:'#facc15',orb1:'#3a1426',orb2:'#170914'},
+  synth:{label:'Synthwave 84',mode:'dark',scene:'retro',bg:'#0c0220',bg2:'#1c0538',accent:'#ff2e97',accent2:'#d4146f',accent3:'#ffd1ea',on:'#ffffff',c2:'#22d3ee',c3:'#fbbf24',orb1:'#2a0b4a',orb2:'#0c0220'},
+  neon:{label:'Neon City',mode:'dark',scene:'retro',bg:'#020617',bg2:'#0b1333',accent:'#22d3ee',accent2:'#0891b2',accent3:'#cffafe',on:'#04121f',c2:'#a855f7',c3:'#f472b6',orb1:'#101a3d',orb2:'#020617'},
+  forest:{label:'Enchanted Forest',mode:'dark',scene:'bubbles',bg:'#03100a',bg2:'#0a2116',accent:'#4ade80',accent2:'#16a34a',accent3:'#dcfce7',on:'#03140c',c2:'#a3e635',c3:'#2dd4bf',orb1:'#0d2a1b',orb2:'#03100a'},
+  ruby:{label:'Ruby Royale',mode:'dark',scene:'orbs',bg:'#11050a',bg2:'#1f0a12',accent:'#fb7185',accent2:'#e11d48',accent3:'#ffe4e6',on:'#ffffff',c2:'#f43f5e',c3:'#881337',orb1:'#2c0f18',orb2:'#0e0407'},
+  matrix:{label:'Cyber Matrix',mode:'dark',scene:'dots',bg:'#020604',bg2:'#04140b',accent:'#22c55e',accent2:'#15803d',accent3:'#dcfce7',on:'#02140a',c2:'#16a34a',c3:'#065f46',orb1:'#062012',orb2:'#020604'},
+  mono:{label:'Midnight Mono',mode:'dark',scene:'dots',bg:'#09090b',bg2:'#141417',accent:'#e4e4e7',accent2:'#a1a1aa',accent3:'#ffffff',on:'#111111',c2:'#71717a',c3:'#3f3f46',orb1:'#1c1c20',orb2:'#09090b'},
+  sakura:{label:'Sakura Blossom',mode:'light',scene:'petals',bg:'#fff3f6',bg2:'#ffe4ec',accent:'#ec4899',accent2:'#be185d',accent3:'#fce7f3',on:'#ffffff',c2:'#f9a8d4',c3:'#fda4af',orb1:'#ffffff',orb2:'#fbcfe8'},
+  arctic:{label:'Arctic Aurora',mode:'light',scene:'aurora',bg:'#eef6fd',bg2:'#dfeeff',accent:'#2563eb',accent2:'#1d4ed8',accent3:'#dbeafe',on:'#ffffff',c2:'#22d3ee',c3:'#a78bfa',orb1:'#ffffff',orb2:'#cfe0f7'},
+  mint:{label:'Mint Breeze',mode:'light',scene:'mesh',bg:'#eefbf6',bg2:'#dcf7ec',accent:'#10b981',accent2:'#047857',accent3:'#d1fae5',on:'#ffffff',c2:'#5eead4',c3:'#bef264',orb1:'#ffffff',orb2:'#c9efe0'},
+  candy:{label:'Candy Pop',mode:'light',scene:'mesh',bg:'#fff7fc',bg2:'#fbeefe',accent:'#d946ef',accent2:'#a21caf',accent3:'#fae8ff',on:'#ffffff',c2:'#38bdf8',c3:'#fb7185',orb1:'#ffffff',orb2:'#f3d9f7'},
+  lavender:{label:'Lavender Dream',mode:'light',scene:'bubbles',bg:'#f6f4ff',bg2:'#ece8ff',accent:'#7c3aed',accent2:'#6d28d9',accent3:'#ede9fe',on:'#ffffff',c2:'#f0abfc',c3:'#93c5fd',orb1:'#ffffff',orb2:'#ddd6fe'},
+  desert:{label:'Desert Dune',mode:'light',scene:'waves',bg:'#fbf5ea',bg2:'#f5e6cc',accent:'#d97706',accent2:'#b45309',accent3:'#fef3c7',on:'#ffffff',c2:'#f59e0b',c3:'#fb923c',orb1:'#fffaf0',orb2:'#f0dcb8'},
+  paper:{label:'Clean Paper',mode:'light',scene:'dots',bg:'#fafaf9',bg2:'#f0f0ee',accent:'#27272a',accent2:'#09090b',accent3:'#e4e4e7',on:'#ffffff',c2:'#a1a1aa',c3:'#d4d4d8',orb1:'#ffffff',orb2:'#e7e5e4'}
+});
+const ADMIN_THEMES = Object.freeze({
+  gold:{label:'Vanz Gold',mode:'dark',scene:'orbs',bg:'#0b0a09',side:'#100f0d',card:'#161513',card2:'#1c1a17',field:'#0f0e0c',text:'#f3eee4',muted:'#9a9387',accent:'#e9b949',accent2:'#c8912a',accent3:'#fff0c2',on:'#1a1307'},
+  latte:{label:'Cream Latte',mode:'light',scene:'dots',bg:'#f5f1e8',side:'#fbf8f1',card:'#ffffff',card2:'#fbf8f2',field:'#f6f2ea',text:'#1f1b14',muted:'#6d6556',accent:'#b98423',accent2:'#8f6212',accent3:'#f3d58a',on:'#ffffff'},
+  ocean:{label:'Midnight Ocean',mode:'dark',scene:'waves',bg:'#070d18',side:'#0a1322',card:'#0f1a2d',card2:'#142238',field:'#0a1426',text:'#e6eefc',muted:'#8a9bb8',accent:'#38bdf8',accent2:'#0284c7',accent3:'#bae6fd',on:'#04121f'},
+  emerald:{label:'Emerald Forest',mode:'dark',scene:'bubbles',bg:'#06110c',side:'#081710',card:'#0d1f16',card2:'#12281d',field:'#0a1a12',text:'#e5f5ec',muted:'#86a897',accent:'#34d399',accent2:'#059669',accent3:'#a7f3d0',on:'#03140c'},
+  nebula:{label:'Nebula Violet',mode:'dark',scene:'aurora',bg:'#0c0816',side:'#110b1f',card:'#171029',card2:'#1e1535',field:'#120c21',text:'#efe9ff',muted:'#9e93bd',accent:'#a78bfa',accent2:'#7c3aed',accent3:'#ddd6fe',on:'#ffffff'},
+  sunset:{label:'Sunset Coral',mode:'dark',scene:'waves',bg:'#140b0a',side:'#1a0f0d',card:'#221412',card2:'#2b1916',field:'#180e0c',text:'#fbece7',muted:'#b5948b',accent:'#fb7185',accent2:'#f97316',accent3:'#fecdd3',on:'#2a0a0f'},
+  neon:{label:'Cyber Neon',mode:'dark',scene:'retro',bg:'#050507',side:'#08080c',card:'#0e0e14',card2:'#14141c',field:'#09090e',text:'#eaffea',muted:'#8b93a1',accent:'#a3e635',accent2:'#22d3ee',accent3:'#ecfccb',on:'#0b1200'},
+  graphite:{label:'Graphite Mono',mode:'dark',scene:'dots',bg:'#0d0e10',side:'#111215',card:'#17181c',card2:'#1d1f24',field:'#101114',text:'#ececee',muted:'#8e9097',accent:'#e5e7eb',accent2:'#9ca3af',accent3:'#ffffff',on:'#111111'},
+  ruby:{label:'Ruby Wine',mode:'dark',scene:'orbs',bg:'#12080a',side:'#170a0d',card:'#1f0e12',card2:'#281318',field:'#160a0d',text:'#fbe9ec',muted:'#b18c93',accent:'#f43f5e',accent2:'#be123c',accent3:'#fecdd3',on:'#ffffff'},
+  sakura:{label:'Sakura Bloom',mode:'light',scene:'petals',bg:'#fdf2f5',side:'#fff7f9',card:'#ffffff',card2:'#fff5f8',field:'#fdf0f4',text:'#3a1d27',muted:'#8a6371',accent:'#ec4899',accent2:'#be185d',accent3:'#fbcfe8',on:'#ffffff'},
+  arctic:{label:'Arctic Frost',mode:'light',scene:'aurora',bg:'#eef4fb',side:'#f7fafe',card:'#ffffff',card2:'#f5f9fe',field:'#edf3fa',text:'#0f1f33',muted:'#5b6f88',accent:'#2563eb',accent2:'#1d4ed8',accent3:'#bfdbfe',on:'#ffffff'},
+  mint:{label:'Mint Fresh',mode:'light',scene:'mesh',bg:'#effaf6',side:'#f7fdfa',card:'#ffffff',card2:'#f3fbf8',field:'#ecf8f3',text:'#0f2a20',muted:'#56776b',accent:'#10b981',accent2:'#047857',accent3:'#a7f3d0',on:'#ffffff'},
+  lavender:{label:'Lavender Mist',mode:'light',scene:'bubbles',bg:'#f4f2fb',side:'#faf9fe',card:'#ffffff',card2:'#f8f6fd',field:'#f1eefa',text:'#221d38',muted:'#6b6488',accent:'#7c3aed',accent2:'#6d28d9',accent3:'#ddd6fe',on:'#ffffff'},
+  sand:{label:'Desert Sand',mode:'light',scene:'waves',bg:'#f7f1e8',side:'#fcf8f2',card:'#fffdf9',card2:'#faf5ec',field:'#f4ede1',text:'#2b2118',muted:'#7d6b58',accent:'#d97706',accent2:'#b45309',accent3:'#fde68a',on:'#ffffff'}
+});
 const state = {
   owner:[], source:'all', q:'', sort:'store', catalogSummary:null,
   product:null, variantId:null, qty:1, busy:false, catalogLoaded:false,
@@ -94,16 +132,38 @@ function fontPreset(name, type='body'){
   const preset=FONT_PRESETS[key] || FONT_PRESETS['plus jakarta sans'];
   return preset[type] || preset.body;
 }
-function applyAppearance(){
+function applyAppearance(adminMode=null){
   const a = state.store.appearance || DEFAULT_STORE.appearance;
   const b = state.store.branding || DEFAULT_STORE.branding;
-  document.documentElement.dataset.theme = a.theme === 'light' ? 'light' : 'dark';
-  document.documentElement.dataset.density = a.density === 'comfortable' ? 'comfortable' : 'compact';
-  document.documentElement.style.setProperty('--accent', /^#[0-9a-f]{6}$/i.test(a.accent||'') ? a.accent : '#f3c74f');
-  document.documentElement.style.setProperty('--radius', `${Math.max(8,Math.min(32,Number(a.radius)||20))}px`);
-  document.documentElement.style.setProperty('--grid-columns', String(Math.max(2,Math.min(6,Number(a.columns)||5))));
-  document.documentElement.style.setProperty('--font', fontPreset(b.body_font,'body'));
-  document.documentElement.style.setProperty('--display', fontPreset(b.display_font,'display'));
+  const isAdmin = adminMode == null ? /^\/admin(?:\/|$)/.test(activeRoute()) : Boolean(adminMode);
+  const siteKey = SITE_THEMES[a.site_theme] ? a.site_theme : (a.theme === 'light' ? 'pearl' : 'gold');
+  const adminKey = ADMIN_THEMES[a.admin_theme] ? a.admin_theme : (a.theme === 'light' ? 'latte' : 'gold');
+  const preset = isAdmin ? ADMIN_THEMES[adminKey] : SITE_THEMES[siteKey];
+  const root = document.documentElement;
+  const customAccent = a.custom_accent && /^#[0-9a-f]{6}$/i.test(a.accent||'') ? a.accent : preset.accent;
+  root.dataset.theme = preset.mode;
+  root.dataset.scene = preset.scene;
+  root.dataset.ui = isAdmin ? 'admin' : 'store';
+  root.dataset.siteTheme = siteKey;
+  root.dataset.adminTheme = adminKey;
+  root.dataset.density = a.density === 'comfortable' ? 'comfortable' : 'compact';
+  const vars = {
+    '--bg':preset.bg,'--bg2':preset.bg2 || preset.side || preset.bg,'--panel':preset.card || `color-mix(in srgb, ${preset.bg2} 76%, transparent)`,
+    '--panel2':preset.card2 || `color-mix(in srgb, ${preset.bg2} 88%, transparent)`,'--field':preset.field || (preset.mode==='dark'?'rgba(0,0,0,.34)':'rgba(255,255,255,.76)'),
+    '--text':preset.text || (preset.mode==='dark'?`color-mix(in srgb, ${preset.accent3} 12%, #f4f4f5)`:`color-mix(in srgb, ${preset.accent2} 16%, #141418)`),
+    '--muted':preset.muted || `color-mix(in srgb, var(--text) ${preset.mode==='dark'?'58%':'62%'}, var(--bg))`,'--accent':customAccent,'--accent2':preset.accent2,'--accent3':preset.accent3,'--accent-on':preset.on,
+    '--scene-c2':preset.c2 || preset.accent2,'--scene-c3':preset.c3 || preset.accent3,'--scene-orb1':preset.orb1 || preset.card2 || preset.bg2,'--scene-orb2':preset.orb2 || preset.bg,
+    '--border':`color-mix(in srgb, ${customAccent} ${preset.mode==='dark'?'18%':'22%'}, transparent)`,
+    '--border-soft':preset.mode==='dark'?'rgba(255,255,255,.07)':`color-mix(in srgb, ${preset.accent2} 10%, transparent)`,
+    '--shadow':preset.mode==='dark'?'0 30px 80px -34px rgba(0,0,0,.9)':`0 28px 70px -38px color-mix(in srgb, ${preset.accent2} 45%, transparent)`
+  };
+  Object.entries(vars).forEach(([key,value])=>root.style.setProperty(key,value));
+  root.style.setProperty('--radius', `${Math.max(8,Math.min(32,Number(a.radius)||20))}px`);
+  root.style.setProperty('--grid-columns', String(Math.max(2,Math.min(6,Number(a.columns)||5))));
+  root.style.setProperty('--font', fontPreset(b.body_font,'body'));
+  root.style.setProperty('--display', fontPreset(b.display_font,'display'));
+  const metaTheme=document.querySelector('meta[name="theme-color"]');
+  if(metaTheme)metaTheme.setAttribute('content',preset.bg);
 }
 applyAppearance();
 
@@ -285,10 +345,19 @@ function visualMarkup(p,extra=''){
   </div><span class="visual-tag">${esc(cat)}</span></div>`;
 }
 
+function themeBackground(){
+  return `<div class="theme-background" aria-hidden="true"><div class="scene-grid"></div><div class="scene-beam"></div><div class="scene-beam second"></div><div class="scene-orb orb-one"></div><div class="scene-orb orb-two"></div><div class="scene-aurora"><i></i><i></i><i></i></div><div class="scene-mesh"></div><div class="scene-waves"><i></i><i></i><i></i></div><div class="scene-bubbles">${'<i></i>'.repeat(10)}</div><div class="scene-petals">${'<i></i>'.repeat(12)}</div><div class="scene-retro"><i class="retro-sun"></i><i class="retro-floor"></i></div><div class="scene-dots"></div><div class="scene-vignette"></div></div>`;
+}
+function themePicker(themes,selected,name){
+  return `<div class="theme-picker">${Object.entries(themes).map(([key,t])=>`<label class="theme-choice ${selected===key?'is-selected':''}" style="--sw-bg:${t.bg};--sw-bg2:${t.bg2||t.side||t.bg};--sw-accent:${t.accent};--sw-c2:${t.c2||t.accent2}"><input type="radio" name="${name}" value="${key}" ${selected===key?'checked':''}><span class="theme-swatch"><i></i><i></i><i></i></span><span class="theme-choice-copy"><b>${esc(t.label)}</b><small>${esc(t.mode)} · ${esc(t.scene)}</small></span><span class="theme-check">✓</span></label>`).join('')}</div>`;
+}
+
 function shell(content,active='catalog'){
   const p=profile();
   const logo=brandLogo();
+  applyAppearance(active==='admin');
   app.innerHTML=`<div class="app-shell">
+    ${themeBackground()}
     <header class="site-header"><div class="wrap header-inner">
       <a class="brand" href="#/">${logo?`<span class="brand-logo"><img src="${esc(logo)}" alt="${esc(state.store.name)}"></span>`:`<span class="brand-mark">${esc(brandMark())}</span>`}<span class="brand-copy"><strong>${esc(state.store.name)}</strong><small>${esc(brandSubtitle())}</small></span></a>
       <nav class="nav-right">
@@ -579,12 +648,37 @@ async function adminFulfillment(){
 }
 function adminAppearance(){
   const a={...DEFAULT_STORE.appearance,...(state.store.appearance||{})},s=state.store.support||{},b={...DEFAULT_STORE.branding,...(state.store.branding||{})};
-  const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><div class="panel-title"><div><h2>Branding, font & media</h2><p class="muted">Atur brand VanzShop, banner slide home, font, dan foto/logo. Preview tersimpan lokal di browser admin ini.</p></div><span class="build-chip">${BUILD_ID}</span></div><div class="form-grid"><label class="form-field"><span>Nama toko</span><input id="aaName" class="input big" value="${esc(state.store.name)}"></label><label class="form-field"><span>Tagline</span><input id="aaTagline" class="input big" value="${esc(state.store.tagline)}"></label><label class="form-field"><span>Inisial brand</span><input id="aaMark" class="input big" maxlength="2" value="${esc(b.mark||'V')}"></label><label class="form-field"><span>Subtitle brand</span><input id="aaSubtitle" class="input big" value="${esc(b.subtitle||'PRODUK DIGITAL')}"></label><label class="form-field"><span>Theme</span><select id="aaTheme" class="input big"><option value="dark" ${a.theme==='dark'?'selected':''}>Dark</option><option value="light" ${a.theme==='light'?'selected':''}>Light</option></select></label><label class="form-field"><span>Accent</span><input id="aaAccent" class="input big" type="color" value="${esc(a.accent||'#f3c74f')}"></label><label class="form-field"><span>Font body</span><select id="aaBodyFont" class="input big">${['Plus Jakarta Sans','Inter','Outfit','Sora','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.body_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="form-field"><span>Font heading</span><select id="aaDisplayFont" class="input big">${['Archivo','Sora','Outfit','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.display_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="form-field"><span>Radius (${esc(a.radius)})</span><input id="aaRadius" type="range" min="8" max="32" value="${esc(a.radius)}"></label><label class="form-field"><span>Kolom desktop</span><input id="aaColumns" type="number" min="2" max="6" class="input big" value="${esc(a.columns)}"></label><label class="form-field"><span>Density</span><select id="aaDensity" class="input big"><option value="compact" ${a.density==='compact'?'selected':''}>Compact</option><option value="comfortable" ${a.density==='comfortable'?'selected':''}>Comfortable</option></select></label><label class="check-field"><input id="aaHero" type="checkbox" ${a.hero!==false?'checked':''}><span>Tampilkan hero slider</span></label><label class="form-field wide"><span>Hero title</span><input id="aaHeroTitle" class="input big" value="${esc(b.hero_title||'')}"></label><label class="form-field wide"><span>Hero subtitle</span><textarea id="aaHeroSubtitle" class="input textarea">${esc(b.hero_subtitle||'')}</textarea></label><label class="form-field wide"><span>Badge hero (pisahkan koma)</span><input id="aaHeroBadges" class="input big" value="${esc((b.hero_badges||[]).join(', '))}"></label><label class="form-field wide"><span>URL logo / foto brand</span><input id="aaLogoUrl" class="input big" placeholder="https://...png atau data:image/..." value="${esc(b.logo_url||'')}"></label><label class="form-field wide"><span>Banner slide home (satu URL per baris)</span><textarea id="aaSlides" class="input textarea tall" placeholder="https://...jpg">${esc((b.hero_slides||[]).join('\n'))}</textarea></label><label class="form-field wide"><span>Catatan output akun</span><textarea id="aaReceiptNote" class="input textarea">${esc(b.receipt_note||'')}</textarea></label><label class="form-field wide"><span>Footer note</span><input id="aaFooterNote" class="input big" value="${esc(b.footer_note||'')}"></label><label class="form-field"><span>WhatsApp toko</span><input id="aaWa" class="input big" value="${esc(s.whatsapp||'')}"></label><label class="form-field"><span>Telegram toko</span><input id="aaTg" class="input big" value="${esc(s.telegram||'')}"></label><label class="form-field"><span>Email toko</span><input id="aaEmail" class="input big" value="${esc(s.email||'')}"></label><label class="form-field wide"><span>Upload logo/foto lokal untuk preview browser ini</span><input id="aaLogoFile" class="input big" type="file" accept="image/*"></label></div><div class="button-row"><button id="aaPreview" class="btn btn-primary">Simpan preview lokal</button><button id="aaReset" class="btn">Reset preview</button><button id="aaEnv" class="btn">Generate ENV Vercel</button></div><div id="aaEnvBox"></div></section><section class="admin-panel"><h2>Catatan penting</h2><p class="muted">Upload file gambar di dashboard hanya untuk preview lokal browser ini. Supaya permanen untuk semua pengunjung, pakai URL gambar yang publik lalu tempel ke Vercel ENV dan redeploy.</p></section><section class="admin-panel"><h2>Tips format stok</h2><p class="muted">Stok format <code>email|password</code> sekarang ditampilkan otomatis sebagai kartu akun yang rapi. Kalau stok berbentuk <code>url|catatan</code> atau object JSON, output sukses juga tetap dipoles.</p></section></div>`;
-  const get=()=>({store:{name:$('#aaName').value.trim(),tagline:$('#aaTagline').value.trim(),support:{whatsapp:$('#aaWa').value.trim(),telegram:$('#aaTg').value.trim(),email:$('#aaEmail').value.trim()},branding:{mark:$('#aaMark').value.trim()||'V',subtitle:$('#aaSubtitle').value.trim()||'PRODUK DIGITAL',logo_url:$('#aaLogoUrl').value.trim(),hero_title:$('#aaHeroTitle').value.trim(),hero_subtitle:$('#aaHeroSubtitle').value.trim(),hero_badges:$('#aaHeroBadges').value.split(',').map(v=>v.trim()).filter(Boolean),hero_slides:$('#aaSlides').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),receipt_note:$('#aaReceiptNote').value.trim(),footer_note:$('#aaFooterNote').value.trim(),body_font:$('#aaBodyFont').value,display_font:$('#aaDisplayFont').value}},appearance:{theme:$('#aaTheme').value,accent:$('#aaAccent').value,radius:Number($('#aaRadius').value),columns:Number($('#aaColumns').value),density:$('#aaDensity').value,hero:$('#aaHero').checked}});
+  const siteTheme=SITE_THEMES[a.site_theme]?a.site_theme:(a.theme==='light'?'pearl':'gold');
+  const adminTheme=ADMIN_THEMES[a.admin_theme]?a.admin_theme:(a.theme==='light'?'latte':'gold');
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid theme-admin-grid">
+    <section class="admin-panel wide theme-studio-head"><div><span class="section-kicker">Visual system</span><h2>Theme Studio</h2><p class="muted">Seluruh palet dan background dari VanzShop Mail sudah tersedia untuk toko dan dashboard. Preview disimpan lokal sebelum kamu salin ke ENV.</p></div><span class="build-chip">${BUILD_ID}</span></section>
+    <section class="admin-panel wide"><div class="panel-title"><div><h2>Tema storefront</h2><p class="muted">19 tema dengan background orbs, aurora, waves, mesh, bubbles, petals, retro, dan dots.</p></div><span class="theme-count">${Object.keys(SITE_THEMES).length} tema</span></div>${themePicker(SITE_THEMES,siteTheme,'siteTheme')}</section>
+    <section class="admin-panel wide"><div class="panel-title"><div><h2>Tema dashboard</h2><p class="muted">Palet dashboard terpisah agar area operasional tetap nyaman dibaca.</p></div><span class="theme-count">${Object.keys(ADMIN_THEMES).length} tema</span></div>${themePicker(ADMIN_THEMES,adminTheme,'adminTheme')}</section>
+    <section class="admin-panel wide"><div class="panel-title"><div><h2>Branding, layout & media</h2><p class="muted">Atur identitas toko, font, banner, kepadatan kartu, dan kontak.</p></div></div><div class="form-grid">
+      <label class="form-field"><span>Nama toko</span><input id="aaName" class="input big" value="${esc(state.store.name)}"></label><label class="form-field"><span>Tagline</span><input id="aaTagline" class="input big" value="${esc(state.store.tagline)}"></label>
+      <label class="form-field"><span>Inisial brand</span><input id="aaMark" class="input big" maxlength="2" value="${esc(b.mark||'V')}"></label><label class="form-field"><span>Subtitle brand</span><input id="aaSubtitle" class="input big" value="${esc(b.subtitle||'PRODUK DIGITAL')}"></label>
+      <label class="check-field"><input id="aaCustomAccent" type="checkbox" ${a.custom_accent?'checked':''}><span>Gunakan aksen warna custom</span></label><label class="form-field"><span>Accent custom</span><input id="aaAccent" class="input big color-input" type="color" value="${esc(/^#[0-9a-f]{6}$/i.test(a.accent||'')?a.accent:SITE_THEMES[siteTheme].accent)}"></label>
+      <label class="form-field"><span>Font body</span><select id="aaBodyFont" class="input big">${['Plus Jakarta Sans','Inter','Outfit','Sora','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.body_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label><label class="form-field"><span>Font heading</span><select id="aaDisplayFont" class="input big">${['Archivo','Sora','Outfit','Space Grotesk'].map(x=>`<option value="${esc(x)}" ${String(b.display_font)===x?'selected':''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="form-field"><span>Radius (${esc(a.radius)}px)</span><input id="aaRadius" type="range" min="8" max="32" value="${esc(a.radius)}"></label><label class="form-field"><span>Kolom desktop</span><input id="aaColumns" type="number" min="2" max="6" class="input big" value="${esc(a.columns)}"></label>
+      <label class="form-field"><span>Density</span><select id="aaDensity" class="input big"><option value="compact" ${a.density==='compact'?'selected':''}>Compact</option><option value="comfortable" ${a.density==='comfortable'?'selected':''}>Comfortable</option></select></label><label class="check-field"><input id="aaHero" type="checkbox" ${a.hero!==false?'checked':''}><span>Tampilkan hero slider</span></label>
+      <label class="form-field wide"><span>Hero title</span><input id="aaHeroTitle" class="input big" value="${esc(b.hero_title||'')}"></label><label class="form-field wide"><span>Hero subtitle</span><textarea id="aaHeroSubtitle" class="input textarea">${esc(b.hero_subtitle||'')}</textarea></label>
+      <label class="form-field wide"><span>Badge hero (pisahkan koma)</span><input id="aaHeroBadges" class="input big" value="${esc((b.hero_badges||[]).join(', '))}"></label><label class="form-field wide"><span>URL logo / foto brand</span><input id="aaLogoUrl" class="input big" placeholder="https://...png atau data:image/..." value="${esc(b.logo_url||'')}"></label>
+      <label class="form-field wide"><span>Banner slide home (satu URL per baris)</span><textarea id="aaSlides" class="input textarea tall" placeholder="https://...jpg">${esc((b.hero_slides||[]).join('\n'))}</textarea></label><label class="form-field wide"><span>Catatan output akun</span><textarea id="aaReceiptNote" class="input textarea">${esc(b.receipt_note||'')}</textarea></label>
+      <label class="form-field wide"><span>Footer note</span><input id="aaFooterNote" class="input big" value="${esc(b.footer_note||'')}"></label><label class="form-field"><span>WhatsApp toko</span><input id="aaWa" class="input big" value="${esc(s.whatsapp||'')}"></label><label class="form-field"><span>Telegram toko</span><input id="aaTg" class="input big" value="${esc(s.telegram||'')}"></label><label class="form-field"><span>Email toko</span><input id="aaEmail" class="input big" value="${esc(s.email||'')}"></label>
+      <label class="form-field wide"><span>Upload logo/foto lokal untuk preview browser ini</span><input id="aaLogoFile" class="input big" type="file" accept="image/*"></label>
+    </div><div class="button-row sticky-actions"><button id="aaPreview" class="btn btn-primary">Terapkan preview</button><button id="aaReset" class="btn">Reset preview</button><button id="aaEnv" class="btn">Generate ENV Vercel</button></div><div id="aaEnvBox"></div></section>
+    <section class="admin-panel"><h2>Preview vs permanen</h2><p class="muted">Preview hanya tersimpan di browser admin ini. Gunakan Generate ENV lalu pasang hasilnya di Vercel untuk semua pengunjung.</p></section><section class="admin-panel"><h2>Background adaptif</h2><p class="muted">Animasi otomatis dimatikan jika perangkat memakai <code>prefers-reduced-motion</code>, dan disederhanakan di layar kecil.</p></section>
+  </div>`;
+  const get=()=>{
+    const pickedSite=$('input[name="siteTheme"]:checked')?.value||'gold',pickedAdmin=$('input[name="adminTheme"]:checked')?.value||'gold';
+    return {store:{name:$('#aaName').value.trim(),tagline:$('#aaTagline').value.trim(),support:{whatsapp:$('#aaWa').value.trim(),telegram:$('#aaTg').value.trim(),email:$('#aaEmail').value.trim()},branding:{mark:$('#aaMark').value.trim()||'V',subtitle:$('#aaSubtitle').value.trim()||'PRODUK DIGITAL',logo_url:$('#aaLogoUrl').value.trim(),hero_title:$('#aaHeroTitle').value.trim(),hero_subtitle:$('#aaHeroSubtitle').value.trim(),hero_badges:$('#aaHeroBadges').value.split(',').map(v=>v.trim()).filter(Boolean),hero_slides:$('#aaSlides').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean),receipt_note:$('#aaReceiptNote').value.trim(),footer_note:$('#aaFooterNote').value.trim(),body_font:$('#aaBodyFont').value,display_font:$('#aaDisplayFont').value}},appearance:{theme:SITE_THEMES[pickedSite]?.mode||'dark',site_theme:pickedSite,admin_theme:pickedAdmin,accent:$('#aaAccent').value,custom_accent:$('#aaCustomAccent').checked,radius:Number($('#aaRadius').value),columns:Number($('#aaColumns').value),density:$('#aaDensity').value,hero:$('#aaHero').checked}};
+  };
+  $$('input[name="siteTheme"],input[name="adminTheme"]').forEach(input=>input.onchange=()=>{$$(`input[name="${input.name}"]`).forEach(x=>x.closest('.theme-choice')?.classList.toggle('is-selected',x.checked));});
   $('#aaLogoFile').onchange=(e)=>{const file=e.target.files&&e.target.files[0]; if(!file) return; const reader=new FileReader(); reader.onload=()=>{ $('#aaLogoUrl').value=String(reader.result||''); toast('Logo/foto dimasukkan ke preview lokal.'); }; reader.readAsDataURL(file); };
   $('#aaPreview').onclick=()=>{const x=get();localStorage.setItem('vanz_appearance_override',JSON.stringify(x.appearance));localStorage.setItem('vanz_store_override',JSON.stringify(x.store));state.store=mergeStore({...state.store,...x.store,appearance:x.appearance,branding:x.store.branding});applyAppearance();toast('Preview branding disimpan di browser ini.');renderAdmin('appearance');};
   $('#aaReset').onclick=()=>{localStorage.removeItem('vanz_appearance_override');localStorage.removeItem('vanz_store_override');toast('Preview lokal dihapus. Reload katalog untuk nilai deployment.');location.hash='#/';};
-  $('#aaEnv').onclick=async()=>{const x=get(),lines=[`STORE_NAME=${x.store.name}`,`STORE_TAGLINE=${x.store.tagline}`,`STORE_BRAND_MARK=${x.store.branding.mark}`,`STORE_BRAND_SUBTITLE=${x.store.branding.subtitle}`,`STORE_LOGO_URL=${x.store.branding.logo_url}`,`STORE_HERO_TITLE=${x.store.branding.hero_title}`,`STORE_HERO_SUBTITLE=${x.store.branding.hero_subtitle}`,`STORE_HERO_BADGES=${x.store.branding.hero_badges.join(',')}`,`STORE_HERO_SLIDES=${x.store.branding.hero_slides.join(',')}`,`STORE_RECEIPT_NOTE=${x.store.branding.receipt_note}`,`STORE_FOOTER_NOTE=${x.store.branding.footer_note}`,`STORE_FONT_BODY=${x.store.branding.body_font}`,`STORE_FONT_DISPLAY=${x.store.branding.display_font}`,`STORE_THEME=${x.appearance.theme}`,`STORE_ACCENT=${x.appearance.accent}`,`STORE_RADIUS=${x.appearance.radius}`,`STORE_COLUMNS=${x.appearance.columns}`,`STORE_DENSITY=${x.appearance.density}`,`STORE_HERO=${x.appearance.hero?'true':'false'}`,`STORE_WHATSAPP=${x.store.support.whatsapp}`,`STORE_TELEGRAM=${x.store.support.telegram}`,`STORE_EMAIL=${x.store.support.email}`],txt=lines.join('\n');$('#aaEnvBox').innerHTML=`<div class="env-box"><pre>${esc(txt)}</pre><button id="copyEnv" class="btn btn-sm">Salin ENV</button></div>`;$('#copyEnv').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('ENV branding disalin.');}catch{toast('Clipboard tidak tersedia.',true);}};};
+  $('#aaEnv').onclick=async()=>{const x=get(),lines=[`STORE_NAME=${x.store.name}`,`STORE_TAGLINE=${x.store.tagline}`,`STORE_BRAND_MARK=${x.store.branding.mark}`,`STORE_BRAND_SUBTITLE=${x.store.branding.subtitle}`,`STORE_LOGO_URL=${x.store.branding.logo_url}`,`STORE_HERO_TITLE=${x.store.branding.hero_title}`,`STORE_HERO_SUBTITLE=${x.store.branding.hero_subtitle}`,`STORE_HERO_BADGES=${x.store.branding.hero_badges.join(',')}`,`STORE_HERO_SLIDES=${x.store.branding.hero_slides.join(',')}`,`STORE_RECEIPT_NOTE=${x.store.branding.receipt_note}`,`STORE_FOOTER_NOTE=${x.store.branding.footer_note}`,`STORE_FONT_BODY=${x.store.branding.body_font}`,`STORE_FONT_DISPLAY=${x.store.branding.display_font}`,`STORE_SITE_THEME=${x.appearance.site_theme}`,`STORE_ADMIN_THEME=${x.appearance.admin_theme}`,`STORE_THEME=${x.appearance.theme}`,`STORE_ACCENT=${x.appearance.custom_accent?x.appearance.accent:''}`,`STORE_RADIUS=${x.appearance.radius}`,`STORE_COLUMNS=${x.appearance.columns}`,`STORE_DENSITY=${x.appearance.density}`,`STORE_HERO=${x.appearance.hero?'true':'false'}`,`STORE_WHATSAPP=${x.store.support.whatsapp}`,`STORE_TELEGRAM=${x.store.support.telegram}`,`STORE_EMAIL=${x.store.support.email}`],txt=lines.join('\n');$('#aaEnvBox').innerHTML=`<div class="env-box"><pre>${esc(txt)}</pre><button id="copyEnv" class="btn btn-sm">Salin ENV</button></div>`;$('#copyEnv').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('ENV branding disalin.');}catch{toast('Clipboard tidak tersedia.',true);}};};
 }
 
 async function adminSewaPay(){
@@ -763,8 +857,10 @@ function adminEnvironment(){
     `STORE_WHATSAPP=${s.whatsapp||''}`,
     `STORE_TELEGRAM=${s.telegram||''}`,
     `STORE_EMAIL=${s.email||''}`,
+    `STORE_SITE_THEME=${a.site_theme||'gold'}`,
+    `STORE_ADMIN_THEME=${a.admin_theme||'gold'}`,
     `STORE_THEME=${a.theme||'dark'}`,
-    `STORE_ACCENT=${a.accent||'#f3c74f'}`,
+    `STORE_ACCENT=${a.custom_accent?(a.accent||'#f3c74f'):''}`,
     `STORE_RADIUS=${a.radius||20}`,
     `STORE_COLUMNS=${a.columns||5}`,
     `STORE_DENSITY=${a.density||'compact'}`,
@@ -849,7 +945,7 @@ async function renderRoute(){
   if(timer){clearInterval(timer);timer=null;}
   const route=activeRoute();
   const admin=route.match(/^\/admin(?:\/([^/]+))?$/);
-  if(admin)return renderAdmin(admin[1]||'overview');
+  if(admin){await ensureInit();return renderAdmin(admin[1]||'overview');}
   if(route==='/akun'){await ensureInit();return renderAccount();}
   const m=route.match(/^\/produk\/([^/]+)\/(.+)$/);if(m){await ensureInit();const p=getProduct(m[1],decodeURIComponent(m[2]));if(!p){toast('Produk tidak ditemukan.',true);location.hash='#/';return;}state.product=p;return detailHtml(p);}
   const pay=route.match(/^\/bayar\/(.+)$/);if(pay){await ensureInit();return renderPayment(decodeURIComponent(pay[1]));}

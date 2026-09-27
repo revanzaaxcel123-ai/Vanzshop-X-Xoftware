@@ -4,6 +4,20 @@ Build: `HARDMAX-v15-ANTIDOUBLE`
 
 V15 menambah soft-reservation stock record **sebelum payment dibuat**, ownership per `stock_record_id`, lock Redis yang lebih kuat, release hold otomatis untuk payment cancel/failed, dan Fulfillment Ledger di admin. Detail teknis ada di `HARDMAX-V15-ANTI-DOUBLE.md`.
 
+## Theme Studio
+
+Storefront dan dashboard memakai visual system VanzShop Mail: glass panels, gradient accent, serta background `orbs`, `aurora`, `waves`, `mesh`, `bubbles`, `petals`, `retro`, dan `dots`. Tersedia 19 tema storefront dan 14 tema dashboard di **Admin → Store Tools → Theme**.
+
+Preview tema disimpan di browser. Untuk menjadikannya permanen, gunakan tombol **Generate ENV Vercel** atau isi:
+
+```text
+STORE_SITE_THEME=gold
+STORE_ADMIN_THEME=gold
+STORE_ACCENT=
+```
+
+`STORE_ACCENT` boleh dikosongkan agar aksen mengikuti preset. Nilai tema yang didukung juga ditampilkan sebagai kartu preview di Theme Studio.
+
 ENV tambahan:
 
 ```text
