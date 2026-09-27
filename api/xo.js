@@ -2,6 +2,7 @@
 
 const crypto = require('crypto');
 const SewaPay = require('../lib/sewapay');
+const Fulfillment = require('../lib/fulfillment');
 
 // README.md is the source of truth for this gateway.
 const BASE_URL = 'https://backend-s2.xoftware.id';
@@ -19,7 +20,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v12-SEWAPAY';
+const BUILD_ID = 'HARDMAX-v13-AUTOCLAIM';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 const STORE = Object.freeze({
@@ -367,7 +368,7 @@ module.exports=async function handler(req,res){
 
   if(action==='health'){
     const shared=sharedIdentity();
-    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,payment:{provider:'sewapay',ready:SewaPay.ready(),base_url:SewaPay.BASE_URL},checkout:{mode:'sewapay',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
+    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,payment:{provider:'sewapay',ready:SewaPay.ready(),base_url:SewaPay.BASE_URL},fulfillment:Fulfillment.status(),checkout:{mode:'sewapay',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
   }
   if(action==='webhook'){
     if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -389,7 +390,7 @@ module.exports=async function handler(req,res){
       case 'init': {
         const c=await fetchCatalog();
         const shared=sharedIdentity();
-        return ok(res,{store:{...STORE,registration:{required_for_new_users:false,endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false,otp_endpoint_documented:false},payment:{provider:'sewapay',configured:SewaPay.ready(),base_url:SewaPay.BASE_URL},checkout:{mode:'sewapay',fulfillment:'manual-until-idempotency-store',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel,shared_sender_masked:shared.configured?maskSender(shared.sender):''},limits:LIMITS},products:c.products,catalog:c.summary});
+        return ok(res,{store:{...STORE,registration:{required_for_new_users:false,endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false,otp_endpoint_documented:false},payment:{provider:'sewapay',configured:SewaPay.ready(),base_url:SewaPay.BASE_URL},checkout:{mode:'sewapay',fulfillment:Fulfillment.ready()?'automatic-xoftware-stock':'disabled-until-redis-configured',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel,shared_sender_masked:shared.configured?maskSender(shared.sender):''},limits:LIMITS},products:c.products,catalog:c.summary});
       }
       case 'catalog_refresh': {
         const c=await fetchCatalog();
@@ -425,17 +426,27 @@ module.exports=async function handler(req,res){
       case 'payment_create': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
         if(!SewaPay.ready()) return fail(res,'Sewa Pay belum dikonfigurasi di Vercel.',503);
+        if(!Fulfillment.ready()) return fail(res,'Auto-fulfillment belum siap. Hubungkan Redis/Upstash dulu agar payment sukses dapat claim stok tepat satu kali.',503,Fulfillment.status());
         const b=bodyOf(req), quantity=int(b.quantity,0), paymentMethod=str(b.method||'QRIS',20).toUpperCase();
         if(!['QRIS','BINANCE'].includes(paymentMethod)) return fail(res,'Metode payment harus QRIS atau BINANCE.');
         if(quantity<1||quantity>20) return fail(res,'quantity wajib 1-20.');
         const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
         if(sel.stock!=null && sel.stock<quantity) return fail(res,'Stok Xoftware tidak mencukupi.',409,{stock:sel.stock,requested:quantity});
+        const claimable=await Fulfillment.listStocks(sel.product.id,sel.variation?.id??null,quantity);
+        if(claimable.stocks.length<quantity) return fail(res,'Stok akun aktif Xoftware yang bisa di-auto-claim tidak mencukupi. Payment tidak dibuat.',409,{catalog_stock:sel.stock,claimable_stock:claimable.stocks.length,requested:quantity,product_id:sel.product.id,variation_id:sel.variation?.id??null});
         const amount=Math.round(sel.unitPrice*quantity);
         const reference=paymentReference();
         const description=str(`${sel.product.title}${sel.variation?` - ${sel.variation.title||sel.variation.name}`:''} x${quantity}`,160);
         const payment=await SewaPay.createPayment({amount,method:paymentMethod,reference,description});
         const paymentId=str(payment?.id,160);
         if(!paymentId) return fail(res,'Sewa Pay tidak mengembalikan payment id.',502,payment);
+        const orderRecord={
+          reference,payment_id:paymentId,product_id:sel.product.id,variation_id:sel.variation?.id??null,code:sel.sku,
+          quantity,amount,method:paymentMethod,product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,
+          stock_at_checkout:sel.stock,created_at:new Date().toISOString(),
+        };
+        try{ await Fulfillment.saveOrder(orderRecord); }
+        catch(e){ try{await SewaPay.cancelPayment(paymentId);}catch{} throw e; }
         const expiresAt=Date.parse(String(payment?.expires_at||''));
         const token=issuePaymentToken({
           payment_id:paymentId,reference,product_id:sel.product.id,variation_id:sel.variation?.id??null,
@@ -445,7 +456,7 @@ module.exports=async function handler(req,res){
         return ok(res,{
           provider:'sewapay',payment,payment_token:token,
           order:{product_id:sel.product.id,variation_id:sel.variation?.id??null,code:sel.sku,product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',quantity,unit_price:sel.unitPrice,stock_at_checkout:sel.stock},
-          fulfillment:{mode:'manual',reason:'Pembayaran dan inventori sudah terhubung, tetapi auto-delivery dari stok Product Management memerlukan idempotency store agar payment yang sama tidak dapat menguras stok berulang kali.'}
+          fulfillment:{mode:'automatic',store:'redis',status:'waiting-payment'}
         },201);
       }
       case 'payment_status': {
@@ -457,7 +468,26 @@ module.exports=async function handler(req,res){
         if(reference && reference!==String(signed.reference)) return fail(res,'Reference tidak cocok dengan token.',401);
         const response=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
         const status=normalizeSewaStatus(response?.status);
-        return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment:{status:status==='success'?'payment-complete-awaiting-fulfillment':'not-ready',automatic:false}});
+        let fulfillment={status:'not-ready',automatic:Fulfillment.ready(),accounts:[]};
+        if(status==='success'){
+          if(!Fulfillment.ready()){
+            fulfillment={status:'store-not-configured',automatic:false,accounts:[],error:'Redis/Upstash fulfillment store belum dikonfigurasi.'};
+          }else{
+            try{
+              let stored=await Fulfillment.getOrder(signed.reference);
+              if(!stored){
+                const sel=await resolveCatalogSelection({product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code});
+                stored=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
+              }
+              const receipt=await Fulfillment.claimPaidOrder({reference:signed.reference,payment:response,source:'status-poll'});
+              fulfillment={...Fulfillment.publicReceipt(receipt),automatic:true};
+            }catch(e){
+              const existing=await Fulfillment.getReceipt(signed.reference).catch(()=>null);
+              fulfillment={...(Fulfillment.publicReceipt(existing)||{status:'retryable_error',accounts:[]}),automatic:true,error:String(e?.message||'Fulfillment gagal.'),code:e?.details?.code||e?.code||null};
+            }
+          }
+        }
+        return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment});
       }
       case 'payment_cancel': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -475,10 +505,33 @@ module.exports=async function handler(req,res){
         const response=await SewaPay.verifyBinance(String(signed.payment_id),str(b.binance_order_id,200));
         return ok(res,{provider:'sewapay',response});
       }
+      case 'fulfillment_status': {
+        const b=bodyOf(req), token=str(b.payment_token||q(req,'payment_token'),5000); let signed;
+        try{signed=verifyPaymentToken(token);}catch(e){return fail(res,e.message,e.status||500);}
+        if(!signed)return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        if(!Fulfillment.ready())return fail(res,'Fulfillment store belum dikonfigurasi.',503,Fulfillment.status());
+        return ok(res,{fulfillment:Fulfillment.publicReceipt(await Fulfillment.getReceipt(signed.reference)),reference:signed.reference});
+      }
+      case 'fulfillment_retry': {
+        if(!method(req,'POST'))return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), token=str(b.payment_token,5000); let signed;
+        try{signed=verifyPaymentToken(token);}catch(e){return fail(res,e.message,e.status||500);}
+        if(!signed)return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        const payment=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
+        if(normalizeSewaStatus(payment?.status)!=='success')return fail(res,'Payment belum COMPLETED.',409,{status:payment?.status});
+        let stored=await Fulfillment.getOrder(signed.reference);
+        if(!stored){
+          const sel=await resolveCatalogSelection({product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code});
+          stored=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
+        }
+        const receipt=await Fulfillment.claimPaidOrder({reference:signed.reference,payment,source:'manual-retry'});
+        return ok(res,{fulfillment:Fulfillment.publicReceipt(receipt)});
+      }
+
       case 'admin_sewapay_probe': {
         if(requireAdmin(req,res)) return;
         const methods=await SewaPay.getMethods();
-        return ok(res,{configured:SewaPay.ready(),base_url:SewaPay.BASE_URL,methods});
+        return ok(res,{configured:SewaPay.ready(),base_url:SewaPay.BASE_URL,methods,fulfillment:Fulfillment.status()});
       }
       case 'xo_checkout_qris': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);

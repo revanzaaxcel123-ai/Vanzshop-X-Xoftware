@@ -1,31 +1,43 @@
-# HARDMAX v12 — Xoftware Catalog + Sewa Pay Payment
+# HARDMAX v13 — Sewa Pay + Auto Claim Stok Xoftware
 
 ## Arsitektur aktif
 
-Storefront v12 memisahkan provider:
+Storefront v13 memisahkan provider tetapi menyambungkan fulfillment secara otomatis:
 
-- **Xoftware** = source of truth katalog, variasi, harga, dan stok live melalui `GET/POST /v1/product`.
-- **Sewa Pay** = payment gateway melalui `/api/v1/payments/*`.
-- **Xoftware Order API** tetap tersedia di dashboard/diagnostic sebagai jalur legacy, tetapi tidak dipakai storefront v12 untuk membuat invoice customer.
+- **Xoftware `/v1/product`** = katalog, variasi, harga, stok agregat.
+- **Sewa Pay** = pembayaran QRIS/Binance.
+- **Xoftware Product Management `/v1/products/:id/stocks`** = sumber akun stok aktif setelah pembayaran sukses.
+- **Redis/Upstash REST** = idempotency + order state agar satu payment hanya boleh claim stok satu kali.
 
-Flow storefront:
+Flow produksi:
 
 ```text
 Customer pilih produk
 → server refresh katalog Xoftware
-→ server validasi product/variation + stok + harga
-→ server menghitung amount (client tidak boleh menentukan nominal)
-→ POST Sewa Pay /api/v1/payments/create
-→ QRIS tampil
-→ polling GET Sewa Pay /api/v1/payments/status
-→ status COMPLETED tampil di website
+→ server validasi product/variation, stok, harga
+→ server create payment Sewa Pay
+→ order metadata disimpan ke Redis
+→ customer bayar
+→ Sewa Pay COMPLETED (polling atau webhook)
+→ lock payment + lock stok di Redis
+→ GET /v1/products/:id/stocks
+→ pilih record stok aktif
+→ DELETE /v1/products/stocks/:id
+→ simpan receipt fulfillment + account value di Redis
+→ account tampil di website
 ```
 
-## Penting: payment belum sama dengan fulfillment
+## Kenapa Redis wajib
 
-Sewa Pay hanya mendokumentasikan payment. Xoftware Product Management memang dapat membaca `value` stok aktif dan menghapus stok, tetapi project v12 **tidak otomatis mengambil/menghapus stok setelah payment** karena project ini belum mempunyai persistent idempotency store/database. Tanpa idempotency, payment yang sama dapat direplay dan menguras lebih dari satu stok.
+Payment status dan webhook dapat dipanggil berkali-kali. Tanpa idempotency, payment yang sama bisa mengambil beberapa akun. v13 memakai lock dan receipt persisten:
 
-Karena itu v12 sengaja berhenti pada status **payment completed / awaiting fulfillment**. Untuk auto-delivery aman, tambahkan database/Redis untuk menyimpan `reference -> fulfilled stock IDs`, atau pakai supplier order API yang sudah memiliki idempotency/order record.
+```text
+reference → payment/order metadata → claimed stock IDs → delivered account values
+```
+
+Jika request yang sama diulang, receipt lama dikembalikan dan **tidak menghapus stok kedua**.
+
+Untuk recovery crash, kandidat stok disimpan ke Redis sebelum request DELETE ke Xoftware. Claim per produk/variasi juga memakai lock terpisah agar dua payment dari aplikasi ini tidak memilih record stok yang sama pada saat bersamaan.
 
 ## ENV Vercel wajib
 
@@ -34,48 +46,82 @@ XSOFTWARE_API_KEY=...
 SEWAPAY_API_KEY=pg_...
 SEWAPAY_SECRET_KEY=sk_...
 ADMIN_PASSWORD=...
+
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=...
+```
+
+Alternatif nama env Redis yang juga didukung:
+
+```text
+KV_REST_API_URL=...
+KV_REST_API_TOKEN=...
 ```
 
 Opsional:
 
 ```text
 PAYMENT_TOKEN_SECRET=...
+FULFILLMENT_KEY_PREFIX=vanzshop:v13
+FULFILLMENT_TTL_DAYS=30
+XSOFTWARE_TIMEOUT=25000
 SEWAPAY_TIMEOUT=25000
 SEWAPAY_WEBHOOK_MAX_SKEW=900
 ```
 
-Jangan commit key asli ke GitHub/frontend. Semua secret hanya dibaca server-side.
+Storefront v13 **menolak create payment baru jika Redis fulfillment store belum siap**. Ini sengaja supaya uang customer tidak diterima ketika sistem belum mampu melakukan auto-claim dengan aman.
 
-## Sewa Pay yang diimplementasikan
+## Endpoint fulfillment internal
 
-- `POST /api/v1/payments/create` — HMAC SHA-256 `timestamp.body`
-- `GET /api/v1/payments/status` — API key + timestamp, tanpa signature sesuai catatan endpoint status
-- `POST /api/v1/payments/cancel`
-- `POST /api/v1/payments/verify-binance`
-- `GET /api/v1/payments/methods` — GET signed dengan body kosong sesuai aturan auth umum
-- webhook `/api/sewapay-webhook` — verifikasi `X-PG-Signature` + `X-PG-Timestamp`
+- `payment_create` — membuat Sewa Pay payment + menyimpan order record Redis.
+- `payment_status` — cek Sewa Pay; jika COMPLETED otomatis menjalankan claim Xoftware.
+- `fulfillment_status` — membaca receipt fulfillment memakai signed payment token.
+- `fulfillment_retry` — retry aman untuk payment COMPLETED yang gagal claim sementara.
+- `/api/sewapay-webhook` — webhook tervalidasi HMAC; `payment.completed` menjalankan engine fulfillment yang sama.
 
-Set webhook Sewa Pay ke:
+## Endpoint Xoftware stok yang dipakai
+
+Sesuai README Product Management:
 
 ```text
-https://DOMAIN-KAMU/api/sewapay-webhook
+GET    /v1/products/:id/stocks
+DELETE /v1/products/stocks/:id
 ```
 
-Webhook saat ini diverifikasi dan di-ack, tetapi tidak melakukan fulfillment karena belum ada database/idempotency store.
+Untuk produk variasi, `variation_id` diteruskan saat mengambil stok aktif.
 
-## Security hardening
+## Output ke pembeli
 
-- Amount dihitung ulang server dari katalog Xoftware; nominal dari browser tidak dipercaya.
-- Stok dicek ulang sebelum create payment.
-- Payment status/cancel memerlukan signed `payment_token` agar payment ID/reference tidak cukup untuk membaca/mengubah order browser lain.
-- Sewa Pay secret/API key tidak pernah dikirim ke browser.
-- Webhook memakai HMAC verification.
+Setelah receipt `fulfilled`, website menampilkan `value` stok dari Xoftware. Bentuknya mengikuti data yang memang disimpan di Xoftware, misalnya object:
 
-Build: `HARDMAX-v12-SEWAPAY`
+```json
+{
+  "Email": "user@example.com",
+  "Password": "secret"
+}
+```
+
+atau string/link. Tombol **Salin semua** tersedia di halaman sukses.
+
+## Migrasi payment v12 yang sudah terbayar
+
+Jika browser masih memiliki `payment_token` v12, `payment_status` v13 dapat membuat order record dari signed token tersebut lalu mencoba fulfillment. Artinya payment lama yang sudah `COMPLETED` masih dapat dicoba claim setelah Redis dipasang, selama stok Xoftware yang sesuai masih tersedia.
+
+## Security
+
+- Nominal tidak dipercaya dari browser; dihitung server dari katalog Xoftware.
+- Payment token ditandatangani server.
+- Sewa Pay webhook diverifikasi HMAC + timestamp.
+- Account value hanya dikembalikan ke browser yang memiliki signed payment token.
+- API key Xoftware, secret Sewa Pay, dan Redis token tetap server-side.
+- Payment/reference yang sama tidak boleh claim dua stok.
+
+Build: `HARDMAX-v13-AUTOCLAIM`
 
 ---
 
 # HARDMAX v11 — Checkout Identity Fix
+
 
 ## Fakta API yang diverifikasi
 

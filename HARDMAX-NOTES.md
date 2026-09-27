@@ -1,11 +1,26 @@
-# HARDMAX v12 Notes
+# HARDMAX v13 AUTOCLAIM
 
-- Xoftware tetap menjadi katalog/stok.
-- Public checkout dipindahkan ke Sewa Pay.
-- Amount dihitung server dari produk/varian Xoftware.
-- QRIS Sewa Pay: create + status + cancel.
-- Binance API adapter tersedia, storefront default tetap QRIS.
-- Webhook Sewa Pay diverifikasi HMAC.
-- Auto-fulfillment stok Xoftware sengaja belum dinyalakan tanpa persistent idempotency store.
-- Xoftware legacy Order API tetap tersedia di admin/diagnostic.
-- Build marker: HARDMAX-v12-SEWAPAY.
+Target v13: payment Sewa Pay `COMPLETED` otomatis mengambil akun dari stok aktif Xoftware dengan idempotency persisten.
+
+## Implementasi
+
+- Katalog/harga/stok agregat: `GET/POST /v1/product`.
+- Payment: Sewa Pay.
+- Stok credential fulfillment: `GET /v1/products/:id/stocks`.
+- Claim stok: `DELETE /v1/products/stocks/:id`.
+- Idempotency/order/receipt: Redis REST (Upstash/Vercel-compatible env).
+- Polling payment dan webhook memakai engine fulfillment yang sama.
+- Satu `reference` payment hanya boleh menghasilkan satu receipt fulfillment.
+- Lock stok per product/variation mencegah dua payment aplikasi memilih record stok yang sama bersamaan.
+- Data akun hasil claim disimpan di receipt Redis dan hanya dikembalikan ke browser dengan signed `payment_token`.
+
+## Env baru wajib
+
+```text
+UPSTASH_REDIS_REST_URL=...
+UPSTASH_REDIS_REST_TOKEN=...
+```
+
+Alias yang didukung: `KV_REST_API_URL` + `KV_REST_API_TOKEN`.
+
+Build: `HARDMAX-v13-AUTOCLAIM`
