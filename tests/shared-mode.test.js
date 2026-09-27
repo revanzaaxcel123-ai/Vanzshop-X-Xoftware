@@ -28,7 +28,8 @@ function invoke({method='GET',query={},body,headers={}}={}){return new Promise((
 
 (async()=>{
   let r=await invoke({query:{a:'init'}});
-  assert.equal(r.body.data.store.checkout.mode,'shared');
+  assert.equal(r.body.data.store.checkout.mode,'sewapay');
+  assert.equal(r.body.data.store.checkout.legacy_xoftware_mode,'shared');
   assert.equal(r.body.data.store.checkout.shared_sender_configured,true);
   assert.equal(r.body.data.store.registration.otp_endpoint_documented,false);
 
@@ -40,7 +41,7 @@ function invoke({method='GET',query={},body,headers={}}={}){return new Promise((
   assert.equal(calls.find(x=>x.path==='/v1/balance').body.sender,'628111111111');
 
   calls.length=0;
-  r=await invoke({method:'POST',query:{a:'checkout_qris'},body:{channel:'whatsapp',sender:'08222222222',name:'Buyer',code:'DEMO-1',quantity:1}});
+  r=await invoke({method:'POST',query:{a:'xo_checkout_qris'},body:{channel:'whatsapp',sender:'08222222222',name:'Buyer',code:'DEMO-1',quantity:1}});
   assert.equal(r.status,200);
   assert.equal(r.body.data.checkout_mode,'shared');
   assert.equal(r.body.data.buyer_sender,'628222222222');

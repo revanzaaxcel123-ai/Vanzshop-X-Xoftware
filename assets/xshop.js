@@ -4,7 +4,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
-const BUILD_ID = 'HARDMAX-v11';
+const BUILD_ID = 'HARDMAX-v12-SEWAPAY';
 window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -24,7 +24,8 @@ const DEFAULT_STORE = {
   support:{whatsapp:'',telegram:'',email:''},
   appearance:{theme:'dark',accent:'#f3c74f',radius:20,columns:5,density:'compact',hero:true},
   registration:{required_before_order:true,api_permission_required_for_new_users:true,supported_sender_types:['whatsapp','telegram_id'],email_is_sender:false,max_per_minute:3,otp_endpoint_documented:false},
-  checkout:{mode:'user',shared_sender_configured:false,shared_channel:'whatsapp',shared_sender_masked:''},
+  payment:{provider:'sewapay',configured:false,base_url:'https://sewapay.id'},
+  checkout:{mode:'sewapay',fulfillment:'manual-until-idempotency-store',shared_sender_configured:false,shared_channel:'whatsapp',shared_sender_masked:''},
   limits:{registration_per_minute:3,deposit_min:1000,deposit_max:1000000,stock_accounts_per_request:100,variations_per_product:30,products_per_page:20,title_max:100,description_max:5000,terms_max:5000,sku_min:3,sku_max:50}
 };
 const state = {
@@ -218,7 +219,7 @@ async function loadCatalog(){
     shell(`<main class="page wrap"><div class="empty-card"><div class="empty-icon">!</div><h3>Katalog belum bisa dimuat</h3><p>${esc(e.message)}</p><button class="btn btn-primary" id="retry">Coba lagi</button></div></main>`,'catalog');
     $('#retry').onclick=loadCatalog;return;
   }
-  const hero=state.store.appearance?.hero!==false?`<section class="hero wrap"><div class="hero-copy"><span class="section-kicker">${esc(state.store.name)} · katalog live</span><h1>Produk digital <span>siap dipakai.</span></h1><p>${esc(state.store.tagline)}</p><div class="hero-pills"><span>Stok live</span><span>QRIS otomatis</span><span>${state.store.checkout?.mode==='shared'?'Shared sender':'User Xoftware'}</span></div></div><div class="hero-side"><div class="hero-card"><small>${esc(state.store.name)}</small><strong>Simple.</strong><span>Ringkas. Cepat. Jelas.</span></div></div></section>`:'';
+  const hero=state.store.appearance?.hero!==false?`<section class="hero wrap"><div class="hero-copy"><span class="section-kicker">${esc(state.store.name)} · katalog live</span><h1>Produk digital <span>siap dipakai.</span></h1><p>${esc(state.store.tagline)}</p><div class="hero-pills"><span>Stok live</span><span>QRIS otomatis</span><span>${state.store.payment?.provider==='sewapay'?'Sewa Pay':'Payment'}</span></div></div><div class="hero-side"><div class="hero-card"><small>${esc(state.store.name)}</small><strong>Simple.</strong><span>Ringkas. Cepat. Jelas.</span></div></div></section>`:'';
   shell(`<main class="page">${hero}<section class="catalog wrap"><div class="catalog-head"><div><span class="section-kicker">Koleksi produk</span><h2>Pilih yang kamu butuhkan</h2></div><div class="mini-stats"><span><b id="countProducts">${allProducts().length}</b> produk</span><span><b>${esc(state.catalogSummary?.known_stock_total??'—')}</b> stok terhitung</span><span>${esc(state.catalogSummary?.method||'GET')} /v1/product</span></div></div><div class="filters"><div class="filter-scroll"><button class="chip active" data-filter="all">Semua</button><button class="chip" data-filter="owner">Owner</button><button class="chip" data-filter="supplier">Supplier</button></div><label class="search-wrap"><span>⌕</span><input id="search" autocomplete="off" placeholder="Cari produk..."></label><select id="sort" class="sort"><option value="store">Urutan toko</option><option value="sold">Terlaris</option><option value="new">Terbaru</option><option value="low">Harga terendah</option><option value="high">Harga tertinggi</option><option value="name">Nama A–Z</option></select></div><div id="grid" class="grid"></div></section></main>`,'catalog');
   $('#search').oninput=e=>{state.q=e.target.value.toLowerCase();drawGrid();};
   $('#sort').onchange=e=>{state.sort=e.target.value;drawGrid();};
@@ -243,15 +244,15 @@ function drawGrid(){
 }
 
 function profileSummary(){
-  const p=profile(), shared=state.store.checkout?.mode==='shared';
-  if(!p?.verified)return `<div class="profile-callout warn"><div><b>${shared?'Isi data pembeli dulu':'Daftar / verifikasi user dulu'}</b><span>${shared?'Checkout memakai sender Xoftware bersama yang dikonfigurasi server; data pembeli tidak diregistrasikan ke Xoftware.':'Xoftware mensyaratkan sender terdaftar sebelum order.'}</span></div><a class="btn btn-sm" href="#/akun">${shared?'Data pembeli':'Buka Akun'}</a></div>`;
-  return `<div class="profile-callout good"><div><b>${esc(p.name)}</b><span>${p.channel==='telegram'?'Telegram ID':'WhatsApp'} · ${esc(p.sender)}${p.email?` · ${esc(p.email)}`:''}${shared?' · shared checkout':''}</span></div><a class="btn btn-sm" href="#/akun">Ganti</a></div>`;
+  const p=profile();
+  if(!p?.verified) return `<div class="profile-callout warn"><div><b>Data pembeli opsional</b><span>Sewa Pay tidak membutuhkan user Xoftware. Simpan WhatsApp/Telegram hanya untuk kontak order lokal.</span></div><a class="btn btn-sm" href="#/akun">Isi data</a></div>`;
+  return `<div class="profile-callout good"><div><b>${esc(p.name||'Pembeli')}</b><span>${p.channel==='telegram'?'Telegram ID':'WhatsApp'} · ${esc(p.sender||'—')}${p.email?` · ${esc(p.email)}`:''}</span></div><a class="btn btn-sm" href="#/akun">Ganti</a></div>`;
 }
 function detailHtml(p){
   const vs=variants(p),chosen=state.variantId??(vs[0]?.id??null),v=vs.find(x=>String(x.id)===String(chosen))||vs[0];state.variantId=v?.id??null;
   const price=Number(v?.price||productPrice(p)||0),stock=v?.stock??productStock(p),safeMax=stock==null?20:Math.max(1,Number(stock)||1);state.qty=Math.min(Math.max(1,state.qty),safeMax);
-  const orderSupplier=isOrderSupplier(p),badge=stockLabel(stock),pReady=Boolean(profile()?.verified),shared=state.store.checkout?.mode==='shared';
-  shell(`<main class="detail wrap"><div class="crumb"><a href="#/">← Kembali</a><span>/</span><b>${esc(p.title)}</b></div><div class="detail-grid"><section class="detail-main"><div class="detail-product">${visualMarkup(p,'detail-visual')}<div class="detail-info"><div class="detail-head"><div><span class="section-kicker">${esc(brandCategory(p.title,p.code))} · ${orderSupplier?'supplier':'owner'}</span><h1>${esc(p.title)}</h1></div><span class="meta-stock ${badge.cls}">${esc(badge.text)}</span></div><p class="detail-desc">${esc(p.description||'Produk digital siap diproses otomatis.')}</p><div class="fact-grid"><div><small>Harga</small><strong>${money(price)}</strong></div><div><small>Stok</small><strong>${stock==null?'—':Number(stock)}</strong></div><div><small>Sumber</small><strong>${orderSupplier?'Supplier':'Owner'}</strong></div></div></div></div></section><aside class="buy-panel"><div class="panel-head"><h2>Pembelian</h2><span>otomatis</span></div>${profileSummary()}${vs.length?`<div class="step-block"><div class="step-head"><span>1</span><b>Pilih varian</b></div><div class="variant-list">${vs.map(x=>{const active=String(x.id)===String(chosen),out=x.stock!=null&&Number(x.stock)<=0;return `<button type="button" class="variant ${active?'active':''} ${out?'disabled':''}" data-variant="${esc(x.id)}" ${out?'disabled':''}><span>${esc(x.name||x.title||'Varian')}</span><span><small>${x.stock==null?'':`Stok ${Number(x.stock)}`}</small><b>${money(x.price)}</b></span></button>`;}).join('')}</div></div>`:''}<div class="step-block"><div class="step-head"><span>${vs.length?2:1}</span><b>Jumlah</b></div><div class="qty"><button id="qtyMinus" type="button">−</button><b id="qtyVal">${state.qty}</b><button id="qtyPlus" type="button">+</button></div></div><div class="step-block"><div class="step-head"><span>${vs.length?3:2}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">QR</div><div><b>QRIS</b><small>${orderSupplier?'Produk supplier ditandai is_reseller=true oleh /v1/product dan tetap diproses melalui Order API.':'Invoice dibuat oleh Xoftware Order API.'}</small></div></div></div><div class="summary"><div><span>${esc(v?.name||v?.title||p.title)}</span><b id="sumUnit">${money(price)}</b></div><div><span>Jumlah</span><b id="sumQty">×${state.qty}</b></div><div class="summary-total"><span>Total</span><strong id="sumTotal">${money(price*state.qty)}</strong></div></div><button class="btn btn-primary btn-buy" id="buyNow" type="button" ${(!pReady||stock===0)?'disabled':''}>${!pReady?(shared?'Isi data pembeli':'Daftar user sebelum checkout'):stock===0?'Stok habis':'Lanjutkan pembayaran'}</button><div class="secure-note">${shared?'Order ke Xoftware memakai shared sender server; hasil akun tetap ditampilkan di website setelah pembayaran sukses.':'Sender pembeli diverifikasi ke user Xoftware sebelum order.'}</div></aside></div></main>`,'catalog');
+  const orderSupplier=isOrderSupplier(p),badge=stockLabel(stock),paymentReady=state.store.payment?.configured!==false;
+  shell(`<main class="detail wrap"><div class="crumb"><a href="#/">← Kembali</a><span>/</span><b>${esc(p.title)}</b></div><div class="detail-grid"><section class="detail-main"><div class="detail-product">${visualMarkup(p,'detail-visual')}<div class="detail-info"><div class="detail-head"><div><span class="section-kicker">${esc(brandCategory(p.title,p.code))} · ${orderSupplier?'supplier':'owner'}</span><h1>${esc(p.title)}</h1></div><span class="meta-stock ${badge.cls}">${esc(badge.text)}</span></div><p class="detail-desc">${esc(p.description||'Produk digital siap diproses otomatis.')}</p><div class="fact-grid"><div><small>Harga</small><strong>${money(price)}</strong></div><div><small>Stok Xoftware</small><strong>${stock==null?'—':Number(stock)}</strong></div><div><small>Pembayaran</small><strong>Sewa Pay</strong></div></div></div></div></section><aside class="buy-panel"><div class="panel-head"><h2>Pembelian</h2><span>Sewa Pay</span></div>${profileSummary()}${vs.length?`<div class="step-block"><div class="step-head"><span>1</span><b>Pilih varian</b></div><div class="variant-list">${vs.map(x=>{const active=String(x.id)===String(chosen),out=x.stock!=null&&Number(x.stock)<=0;return `<button type="button" class="variant ${active?'active':''} ${out?'disabled':''}" data-variant="${esc(x.id)}" ${out?'disabled':''}><span>${esc(x.name||x.title||'Varian')}</span><span><small>${x.stock==null?'':`Stok ${Number(x.stock)}`}</small><b>${money(x.price)}</b></span></button>`;}).join('')}</div></div>`:''}<div class="step-block"><div class="step-head"><span>${vs.length?2:1}</span><b>Jumlah</b></div><div class="qty"><button id="qtyMinus" type="button">−</button><b id="qtyVal">${state.qty}</b><button id="qtyPlus" type="button">+</button></div></div><div class="step-block"><div class="step-head"><span>${vs.length?3:2}</span><b>Pembayaran</b></div><div class="payment-card"><div class="payment-icon">QR</div><div><b>QRIS · Sewa Pay</b><small>Nominal dihitung server dari harga katalog Xoftware. Fee gateway ditambahkan oleh Sewa Pay pada invoice.</small></div></div></div><div class="summary"><div><span>${esc(v?.name||v?.title||p.title)}</span><b id="sumUnit">${money(price)}</b></div><div><span>Jumlah</span><b id="sumQty">×${state.qty}</b></div><div class="summary-total"><span>Subtotal</span><strong id="sumTotal">${money(price*state.qty)}</strong></div></div><button class="btn btn-primary btn-buy" id="buyNow" type="button" ${(!paymentReady||stock===0)?'disabled':''}>${!paymentReady?'Sewa Pay belum dikonfigurasi':stock===0?'Stok habis':'Bayar dengan QRIS'}</button><div class="secure-note">Katalog/stok dari Xoftware · pembayaran dari Sewa Pay. Auto-delivery stok belum diaktifkan tanpa idempotency database.</div></aside></div></main>`,'catalog');
   $$('.variant').forEach(btn=>btn.onclick=()=>{state.variantId=btn.dataset.variant;state.qty=1;renderRoute();});
   $('#qtyMinus').onclick=()=>{state.qty=Math.max(1,state.qty-1);refreshTotal(p);};
   $('#qtyPlus').onclick=()=>{const raw=v?.stock??productStock(p),max=raw==null?20:Math.max(1,Math.min(20,Number(raw)||1));state.qty=Math.min(max,state.qty+1);refreshTotal(p);};
@@ -260,59 +261,31 @@ function detailHtml(p){
 function refreshTotal(p){const vs=variants(p),v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0],price=Number(v?.price||productPrice(p)||0);$('#qtyVal').textContent=state.qty;$('#sumUnit').textContent=money(price);$('#sumQty').textContent=`×${state.qty}`;$('#sumTotal').textContent=money(price*state.qty);}
 function priceFrom(p){const vs=variants(p);return Number(vs.find(x=>String(x.id)===String(state.variantId))?.price||productPrice(p)||0);}
 async function startCheckout(p){
-  const prof=profile(); if(!prof?.verified){location.hash='#/akun';return;}
-  const vs=variants(p),v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0],sku=String(v?.code||p.code||'').trim();if(!sku){toast('SKU produk/varian tidak tersedia.',true);return;}
-  if(state.busy)return;state.busy=true;const btn=$('#buyNow');if(btn){btn.disabled=true;btn.textContent='Memproses...';}
+  const prof=profile()||{};
+  const vs=variants(p),v=vs.find(x=>String(x.id)===String(state.variantId))||vs[0],sku=String(v?.code||p.code||'').trim();
+  if(!sku){toast('SKU produk/varian tidak tersedia.',true);return;}
+  if(state.busy)return;state.busy=true;const btn=$('#buyNow');if(btn){btn.disabled=true;btn.textContent='Membuat invoice Sewa Pay...';}
   try{
-    const result=await api('checkout_qris',{code:sku,quantity:state.qty,name:prof.name,channel:prof.channel,sender:prof.sender,email:prof.email||''});
-    const d=result?.transaction||{},transaction_id=String(d?.transaction_id||'');if(!transaction_id)throw new Error('Transaksi belum mendapatkan transaction_id.');
-    saveLocalOrder({type:'owner',transaction_id,status_token:String(result?.status_token||''),sender:prof.sender,channel:prof.channel,email:prof.email||'',product_title:p.title,variant:v?.title||v?.name||'',sku,total:Number(d?.total_to_pay||d?.amount||priceFrom(p)*state.qty),status:d?.status||'pending',qr_string:d?.qr_string||'',link:d?.link||'',expired_at:Number(d?.expired_at||0),created_at:Date.now()});
-    location.hash=`#/bayar/${encodeURIComponent(transaction_id)}`;
-  }catch(e){
-    if(state.store.checkout?.mode!=='shared'&&e?.details?.reason==='REGISTRATION_DISABLED'){const old=profile();if(old)saveProfile({...old,verified:false});}
-    toast(e.message,true);if(btn){btn.disabled=false;btn.textContent='Lanjutkan pembayaran';}
-  }finally{state.busy=false;}
+    const result=await api('payment_create',{product_id:p.id,variation_id:v?.id??null,code:sku,quantity:state.qty,method:'QRIS'});
+    const d=result?.payment||{},paymentId=String(d?.id||'');if(!paymentId)throw new Error('Sewa Pay tidak mengembalikan payment id.');
+    saveLocalOrder({type:'sewapay',provider:'sewapay',transaction_id:paymentId,reference:String(d?.reference||''),payment_token:String(result?.payment_token||''),sender:prof.sender||'',channel:prof.channel||'',email:prof.email||'',product_id:result?.order?.product_id??p.id,variation_id:result?.order?.variation_id??v?.id??null,sku:result?.order?.code||sku,product_title:result?.order?.product_title||p.title,variant:result?.order?.variant_title||v?.title||v?.name||'',quantity:result?.order?.quantity||state.qty,unit_price:Number(result?.order?.unit_price||priceFrom(p)),amount:Number(d?.amount||result?.order?.unit_price*state.qty||0),fee:Number(d?.fee||0),total:Number(d?.total_payment||d?.amount||priceFrom(p)*state.qty),status:String(d?.status||'PENDING').toLowerCase()==='completed'?'success':'pending',qr_string:d?.payment_data?.qr_string||'',expires_at:d?.expires_at||'',fulfillment:'pending',created_at:Date.now()});
+    location.hash=`#/bayar/${encodeURIComponent(paymentId)}`;
+  }catch(e){toast(e.message,true);if(btn){btn.disabled=false;btn.textContent='Bayar dengan QRIS';}}
+  finally{state.busy=false;}
 }
 
 function renderAccount(){
-  const old=profile()||{channel:'whatsapp',name:'',sender:'',email:'',verified:false};
-  const shared=state.store.checkout?.mode==='shared';
-  const sharedReady=Boolean(state.store.checkout?.shared_sender_configured);
-  const intro=shared
-    ? `Mode <code>shared</code>: nomor/Telegram pembeli hanya menjadi data kontak lokal. Order API memakai satu sender Xoftware yang dikonfigurasi di server.`
-    : `Order API memakai <code>sender</code> pembeli yang sudah terdaftar di Xoftware. Email bukan sender pada dokumentasi API.`;
-  const side=shared
-    ? `<h2>Mode shared checkout</h2><ol><li>Admin mengisi <code>XSOFTWARE_CHECKOUT_MODE=shared</code>.</li><li>Admin mengisi satu <code>XSOFTWARE_SHARED_SENDER</code> yang SUDAH terdaftar di Xoftware.</li><li>Pembeli isi nama + WhatsApp/Telegram untuk identitas order lokal.</li><li>Website mengecek shared sender lewat <code>/v1/balance</code>.</li><li>Checkout QRIS memakai shared sender tersebut, jadi tidak memanggil <code>/v1/register</code> untuk pembeli.</li><li>Setelah status sukses, <code>accounts[]</code> dari <code>/v1/order/status</code> tampil di website.</li></ol><div class="doc-note"><b>Tidak ada endpoint OTP di Order API</b><span>README/API Order hanya mendokumentasikan <code>/v1/register</code> dengan <code>sender + name</code>. Karena itu toko tidak membuat flow OTP fiktif.</span></div><div class="status-card ${sharedReady?'good':'warn'}"><b>${sharedReady?'Shared sender terkonfigurasi':'Shared sender belum dikonfigurasi'}</b><span>${sharedReady?`Server memakai ${esc(state.store.checkout?.shared_channel||'whatsapp')} · ${esc(state.store.checkout?.shared_sender_masked||'configured')}`:'Isi env XSOFTWARE_SHARED_SENDER lalu redeploy.'}</span></div>`
-    : `<h2>Alur user Xoftware</h2><ol><li>Masukkan WhatsApp atau Telegram ID.</li><li>Website mengecek user lewat <code>/v1/balance</code>.</li><li>Kalau belum ada, website mencoba <code>/v1/register</code>.</li><li><code>/v1/register</code> hanya menerima <code>sender + name</code>; README tidak mendokumentasikan OTP.</li><li>Kalau API Registration bot dinonaktifkan, code toko tidak bisa mengaktifkannya sendiri.</li><li>Setelah user valid, checkout QRIS memakai sender user tersebut.</li></ol><div class="doc-note"><b>Email tidak dipakai sebagai sender</b><span>Dokumentasi Order API hanya menyebut nomor WhatsApp atau ID Telegram untuk <code>sender</code>.</span></div>`;
-  shell(`<main class="account-page wrap"><div class="page-head"><div><span class="section-kicker">${shared?'Data Pembeli':'User Xoftware'}</span><h1>${shared?'Identitas pembeli':'Daftar / verifikasi akun'}</h1><p>${intro}</p></div><a class="btn" href="#/">← Katalog</a></div><div class="account-grid"><section class="account-card"><div class="channel-tabs"><button class="chip ${old.channel!=='telegram'?'active':''}" data-channel="whatsapp">WhatsApp</button><button class="chip ${old.channel==='telegram'?'active':''}" data-channel="telegram">Telegram ID</button></div><label class="form-field"><span>Nama <em>wajib</em></span><input id="accountName" class="input big" maxlength="120" placeholder="Nama pengguna" value="${esc(old.name)}"></label><label class="form-field"><span id="senderLabel">${old.channel==='telegram'?'Telegram ID':'Nomor WhatsApp'} <em>wajib</em></span><input id="accountSender" class="input big" inputmode="${old.channel==='telegram'?'text':'tel'}" placeholder="${old.channel==='telegram'?'Telegram ID':'08xxxxxxxxxx'}" value="${esc(old.sender)}"></label><label class="form-field"><span>Email <small>(opsional, hanya disimpan di browser)</small></span><input id="accountEmail" class="input big" type="email" placeholder="nama@email.com" value="${esc(old.email||'')}"></label><button id="prepareUser" class="btn btn-primary btn-buy" type="button">${shared?'Simpan & cek shared sender':'Cek / daftarkan user'}</button><div id="registrationStatus">${old.verified?`<div class="status-card good"><b>${shared?'Data pembeli siap':'User terverifikasi'}</b><span>${esc(old.name)} · ${esc(old.sender)}</span></div>`:''}</div></section><aside class="account-info">${side}<div class="support-actions">${supportLinks()||'<span class="muted">Kontak toko belum dikonfigurasi.</span>'}</div></aside></div></main>`,'account');
+  const old=profile()||{channel:'whatsapp',sender:'',name:'',email:''};
+  shell(`<main class="account-page wrap"><div class="page-head"><div><span class="section-kicker">Data Pembeli</span><h1>Kontak order</h1><p>Sewa Pay tidak membutuhkan registrasi Xoftware. Data ini opsional dan disimpan lokal di browser untuk memudahkan kontak.</p></div><a class="btn" href="#/">← Katalog</a></div><div class="account-grid"><section class="account-card"><div class="channel-tabs"><button class="chip ${old.channel!=='telegram'?'active':''}" data-channel="whatsapp">WhatsApp</button><button class="chip ${old.channel==='telegram'?'active':''}" data-channel="telegram">Telegram ID</button></div><label class="form-field"><span>Nama</span><input id="accountName" class="input big" maxlength="120" placeholder="Nama pembeli" value="${esc(old.name||'')}"></label><label class="form-field"><span id="senderLabel">${old.channel==='telegram'?'Telegram ID':'Nomor WhatsApp'}</span><input id="accountSender" class="input big" placeholder="${old.channel==='telegram'?'Telegram ID':'08xxxxxxxxxx'}" value="${esc(old.sender||'')}"></label><label class="form-field"><span>Email <small>(opsional)</small></span><input id="accountEmail" class="input big" type="email" placeholder="nama@email.com" value="${esc(old.email||'')}"></label><button id="prepareUser" class="btn btn-primary btn-buy" type="button">Simpan data</button><div id="registrationStatus">${old.verified?`<div class="status-card good"><b>Data tersimpan</b><span>${esc(old.name||'Pembeli')} · ${esc(old.sender||'—')}</span></div>`:''}</div></section><aside class="account-info"><h2>Tidak ada registrasi Xoftware</h2><ol><li>Katalog dan stok tetap dibaca dari <code>/v1/product</code>.</li><li>Invoice dibuat lewat Sewa Pay.</li><li>Status pembayaran dicek ke Sewa Pay.</li><li>User Xoftware tidak diperlukan untuk membuat invoice.</li></ol><div class="doc-note"><b>Fulfillment terpisah</b><span>Sewa Pay hanya payment gateway. Pengambilan akun stok otomatis membutuhkan proses fulfillment yang idempotent / database.</span></div></aside></div></main>`,'account');
   let channel=old.channel==='telegram'?'telegram':'whatsapp';
-  $$('.channel-tabs .chip').forEach(b=>b.onclick=()=>{channel=b.dataset.channel;$$('.channel-tabs .chip').forEach(x=>x.classList.toggle('active',x===b));$('#senderLabel').innerHTML=`${channel==='telegram'?'Telegram ID':'Nomor WhatsApp'} <em>wajib</em>`;const inp=$('#accountSender');inp.placeholder=channel==='telegram'?'Telegram ID':'08xxxxxxxxxx';inp.inputMode=channel==='telegram'?'text':'tel';});
-  $('#prepareUser').onclick=async()=>{
+  $$('.channel-tabs .chip').forEach(b=>b.onclick=()=>{channel=b.dataset.channel;$$('.channel-tabs .chip').forEach(x=>x.classList.toggle('active',x===b));$('#senderLabel').textContent=channel==='telegram'?'Telegram ID':'Nomor WhatsApp';});
+  $('#prepareUser').onclick=()=>{
     const name=String($('#accountName').value||'').trim(),raw=String($('#accountSender').value||'').trim(),email=String($('#accountEmail').value||'').trim().toLowerCase();
     const sender=channel==='telegram'?raw:phoneNormalize(raw);
-    if(!name){toast('Nama wajib diisi.',true);return;}
-    if(channel==='telegram'?!telegramOk(sender):!phoneOk(sender)){toast(channel==='telegram'?'Telegram ID wajib diisi.':'Nomor WhatsApp tidak valid.',true);return;}
     if(email&&!emailOk(email)){toast('Email tidak valid.',true);return;}
-    const btn=$('#prepareUser');btn.disabled=true;btn.textContent=shared?'Mengecek shared sender...':'Memeriksa user...';
-    try{
-      const r=await api('customer_prepare',{channel,sender,name,email});
-      saveProfile({channel,sender:r.sender||sender,name:r.user?.name||name,email,verified:true,user_id:r.user?.id??null,level:r.user?.level||'',checkout_mode:r.checkout_mode||state.store.checkout?.mode||'user',checked_at:Date.now()});
-      toast(r.state==='registered'?'User berhasil didaftarkan.':r.state==='shared'?'Data pembeli siap. Shared sender Xoftware valid.':'User sudah terdaftar dan siap checkout.');
-      renderAccount();
-    }catch(e){
-      saveProfile({channel,sender,name,email,verified:false,checked_at:Date.now()});
-      const reason=e?.details?.reason;
-      const slot=$('#registrationStatus');
-      const actions=supportLinks();
-      if(slot){
-        if(reason==='SHARED_SENDER_MISSING') slot.innerHTML=`<div class="registration-blocked"><b>Shared sender belum dikonfigurasi</b><span>Isi <code>XSOFTWARE_SHARED_SENDER</code> di Vercel dengan sender yang SUDAH terdaftar di Xoftware, lalu redeploy.</span></div>`;
-        else if(reason==='SHARED_SENDER_NOT_REGISTERED') slot.innerHTML=`<div class="registration-blocked"><b>Shared sender belum terdaftar di Xoftware</b><span>Mode shared menghindari registrasi pembeli, tetapi tetap memerlukan minimal satu sender Xoftware existing untuk membuat order.</span></div>`;
-        else if(reason==='REGISTRATION_DISABLED') slot.innerHTML=`<div class="registration-blocked"><b>Izin API Registration Xoftware nonaktif</b><span>README tidak punya endpoint OTP. <code>/v1/register</code> sendiri sedang ditolak provider. Gunakan user yang sudah terdaftar atau aktifkan mode shared dengan satu sender existing.</span>${actions?`<div class="support-actions">${actions}</div>`:''}</div>`;
-        else if(reason==='REGISTRATION_RATE_LIMIT'||e.status===429) slot.innerHTML=`<div class="registration-blocked"><b>Rate limit registrasi tercapai</b><span>Xoftware membatasi maksimal 3 registrasi per menit.</span></div>`;
-        else slot.innerHTML=`<div class="registration-blocked"><b>Registrasi / verifikasi gagal</b><span>${esc(e.message)}</span></div>`;
-      }
-      btn.disabled=false;btn.textContent=shared?'Simpan & cek shared sender':'Cek / daftarkan user';
-    }
+    if(sender && (channel==='telegram'?!telegramOk(sender):!phoneOk(sender))){toast(channel==='telegram'?'Telegram ID tidak valid.':'Nomor WhatsApp tidak valid.',true);return;}
+    saveProfile({channel,sender,name:name||'Pembeli',email,verified:true,checkout_mode:'sewapay',checked_at:Date.now()});
+    toast('Data pembeli disimpan di browser.');renderAccount();
   };
 }
 
@@ -335,25 +308,39 @@ function renderOrders(){
   $$('.order-row').forEach(b=>b.onclick=()=>{const o=list.find(x=>x.transaction_id===b.dataset.tx);if(o)location.hash=`#/bayar/${encodeURIComponent(o.transaction_id)}`;});
 }
 async function renderPayment(txid){
-  const o=orders().find(x=>String(x.transaction_id)===String(txid));if(!o){toast('Pesanan tidak ditemukan.',true);location.hash='#/pesanan';return;}const isDeposit=o.type==='deposit';
-  shell(`<main class="invoice wrap"><div class="crumb"><a href="#/pesanan">← Pesanan</a><span>/</span><b>${isDeposit?'Isi saldo':'Pembayaran'}</b></div><div class="invoice-grid"><section class="invoice-main"><div class="invoice-badge" id="invoiceBadge">MENUNGGU PEMBAYARAN</div><h1>${esc(isDeposit?'Isi Saldo':o.product_title)}</h1><p>${esc(isDeposit?'Saldo user':(o.variant||''))}${o.sender?` · ${esc(o.sender)}`:''}</p><div class="payment-box">${o.qr_string?'<div class="qr" id="qr"></div>':''}<div class="pay-data"><span>Total</span><strong>${money(o.total)}</strong><small>Scan QRIS atau buka halaman pembayaran.</small></div>${o.link?`<a class="btn btn-primary" target="_blank" rel="noopener" href="${esc(o.link)}">Buka pembayaran</a>`:''}</div></section><aside class="invoice-side"><div><span>Referensi</span><b>${esc(o.transaction_id)}</b></div><div><span>Sender</span><b>${esc(o.sender||'—')}</b></div><div><span>Status</span><b id="invoiceStatus">Menunggu</b></div><button class="btn" id="checkNow">Cek status</button></aside></div></main>`,'orders');
+  const o=orders().find(x=>String(x.transaction_id)===String(txid));if(!o){toast('Pesanan tidak ditemukan.',true);location.hash='#/pesanan';return;}
+  const provider=o.provider||'xoftware';
+  shell(`<main class="invoice wrap"><div class="crumb"><a href="#/pesanan">← Pesanan</a><span>/</span><b>Pembayaran</b></div><div class="invoice-grid"><section class="invoice-main"><div class="invoice-badge" id="invoiceBadge">MENUNGGU PEMBAYARAN</div><h1>${esc(o.product_title)}</h1><p>${esc(o.variant||'')} · ${esc(provider==='sewapay'?'Sewa Pay':'Xoftware')}</p><div class="payment-box">${o.qr_string?'<div class="qr" id="qr"></div>':''}<div class="pay-data"><span>Total dibayar</span><strong>${money(o.total)}</strong><small>${o.fee?`Subtotal ${money(o.amount)} + fee ${money(o.fee)}`:'Scan QRIS untuk menyelesaikan pembayaran.'}</small></div></div></section><aside class="invoice-side"><div><span>Payment ID</span><b>${esc(o.transaction_id)}</b></div><div><span>Reference</span><b>${esc(o.reference||'—')}</b></div><div><span>Status</span><b id="invoiceStatus">Menunggu</b></div><button class="btn" id="checkNow">Cek status</button>${provider==='sewapay'?'<button class="btn" id="cancelPayment">Batalkan</button>':''}</aside></div></main>`,'orders');
   if(o.qr_string&&window.QRCode&&$('#qr')){try{new QRCode($('#qr'),{text:o.qr_string,width:220,height:220,colorDark:'#111',colorLight:'#fff'});}catch{}}
-  $('#checkNow').onclick=()=>refreshInvoice(o);if(timer)clearInterval(timer);timer=setInterval(()=>refreshInvoice(o),5000);refreshInvoice(o);
+  $('#checkNow').onclick=()=>refreshInvoice(o);
+  const cancel=$('#cancelPayment');if(cancel)cancel.onclick=async()=>{if(!confirm('Batalkan payment yang masih PENDING?'))return;try{await api('payment_cancel',{payment_token:o.payment_token});o.status='cancelled';saveLocalOrder(o);toast('Payment dibatalkan.');renderPayment(o.transaction_id);}catch(e){toast(e.message,true);}};
+  if(timer)clearInterval(timer);timer=setInterval(()=>refreshInvoice(o),5000);refreshInvoice(o);
 }
 async function refreshInvoice(o){
-  try{if(!o.status_token)throw new Error('Pesanan lama tidak memiliki token status.');const data=await api('order_status',{transaction_id:o.transaction_id,status_token:o.status_token}),d=data?.transaction||{},status=String(d?.status||'').toLowerCase();if(status){o.status=status;o.accounts=d?.accounts||[];if(d?.total!=null||d?.total_to_pay!=null)o.total=Number(d?.total??d?.total_to_pay);saveLocalOrder(o);}const el=$('#invoiceStatus');if(el)el.textContent=status==='success'?'Selesai':status==='fail'?'Gagal':'Menunggu';if(status==='success'){clearInterval(timer);timer=null;showSuccess(o,d?.accounts||[]);}else if(status==='fail'){clearInterval(timer);timer=null;toast('Pembayaran gagal atau dibatalkan.',true);}}catch(e){if(String(e.message).toLowerCase().includes('token')){if(timer){clearInterval(timer);timer=null;}toast(e.message,true);}}
+  try{
+    if(o.provider==='sewapay'){
+      if(!o.payment_token) throw new Error('Pesanan tidak memiliki payment token.');
+      const data=await api('payment_status',{id:o.transaction_id,reference:o.reference||'',payment_token:o.payment_token});
+      const d=data?.payment||{},status=String(data?.status||'pending').toLowerCase();
+      o.status=status;o.fee=Number(d?.fee??o.fee??0);o.amount=Number(d?.amount??o.amount??0);o.total=Number(d?.total_payment??(o.amount+o.fee)??o.total);o.fulfillment=data?.fulfillment?.status||o.fulfillment;saveLocalOrder(o);
+      const el=$('#invoiceStatus');if(el)el.textContent=status==='success'?'Pembayaran berhasil':status==='fail'?'Gagal':status==='cancelled'?'Dibatalkan':'Menunggu';
+      if(status==='success'){clearInterval(timer);timer=null;showSuccess(o,[]);}else if(['fail','cancelled'].includes(status)){clearInterval(timer);timer=null;}
+      return;
+    }
+    if(!o.status_token)throw new Error('Pesanan lama tidak memiliki token status.');const data=await api('order_status',{transaction_id:o.transaction_id,status_token:o.status_token}),d=data?.transaction||{},status=String(d?.status||'').toLowerCase();if(status){o.status=status;o.accounts=d?.accounts||[];if(d?.total!=null||d?.total_to_pay!=null)o.total=Number(d?.total??d?.total_to_pay);saveLocalOrder(o);}const el=$('#invoiceStatus');if(el)el.textContent=status==='success'?'Selesai':status==='fail'?'Gagal':'Menunggu';if(status==='success'){clearInterval(timer);timer=null;showSuccess(o,d?.accounts||[]);}else if(status==='fail'){clearInterval(timer);timer=null;toast('Pembayaran gagal atau dibatalkan.',true);}
+  }catch(e){if(String(e.message).toLowerCase().includes('token')){if(timer){clearInterval(timer);timer=null;}}toast(e.message,true);}
 }
 function formatAccount(a){if(typeof a==='string')return a;return Object.entries(a||{}).map(([k,v])=>`${k}: ${v}`).join('\n');}
 function showSuccess(o,accountsOverride){
-  if(timer){clearInterval(timer);timer=null;}const acc=accountsOverride||o.accounts||[],isDeposit=o.type==='deposit';
-  shell(`<main class="success wrap"><div class="success-card"><div class="success-mark">✓</div><span class="section-kicker">${isDeposit?'Saldo diproses':'Pesanan berhasil'}</span><h1>${isDeposit?'Pembayaran diterima':'Pesanan selesai'}</h1><p>${isDeposit?'Permintaan deposit sudah terkonfirmasi.':'Detail produk sudah tersedia.'}</p><div class="success-meta"><span>${esc(isDeposit?'Isi Saldo':o.product_title)}</span><span>${money(o.total)}</span></div>${acc.length?`<div class="accounts"><div class="accounts-head"><b>Detail produk</b><button class="btn btn-sm" id="copyAll">Salin semua</button></div>${acc.map(a=>`<div class="account-row"><pre>${esc(formatAccount(a))}</pre></div>`).join('')}</div>`:''}<div class="success-actions"><a class="btn btn-primary" href="#/pesanan">Pesanan</a><a class="btn" href="#/">Katalog</a></div></div></main>`,'orders');
+  if(timer){clearInterval(timer);timer=null;}const acc=accountsOverride||o.accounts||[],sewa=o.provider==='sewapay';
+  shell(`<main class="success wrap"><div class="success-card"><div class="success-mark">✓</div><span class="section-kicker">${sewa?'Payment completed':'Pesanan berhasil'}</span><h1>${sewa?'Pembayaran diterima':'Pesanan selesai'}</h1><p>${sewa?'Sewa Pay sudah mengonfirmasi pembayaran. Fulfillment akun belum dijalankan otomatis karena project ini belum punya idempotency database.':'Detail produk sudah tersedia.'}</p><div class="success-meta"><span>${esc(o.product_title)}</span><span>${money(o.total)}</span>${sewa?`<span>Reference: ${esc(o.reference||'—')}</span>`:''}</div>${acc.length?`<div class="accounts"><div class="accounts-head"><b>Detail produk</b><button class="btn btn-sm" id="copyAll">Salin semua</button></div>${acc.map(a=>`<div class="account-row"><pre>${esc(formatAccount(a))}</pre></div>`).join('')}</div>`:sewa?`<div class="registration-blocked"><b>Payment ≠ fulfillment</b><span>Produk/stok memang berasal dari Xoftware, tetapi Sewa Pay hanya memproses pembayaran. Auto-claim stok harus ditambah bersama database/idempotency agar payment yang sama tidak bisa mengambil stok dua kali.</span></div>`:''}<div class="success-actions"><a class="btn btn-primary" href="#/pesanan">Pesanan</a><a class="btn" href="#/">Katalog</a></div></div></main>`,'orders');
   const b=$('#copyAll');if(b)b.onclick=async()=>{try{await navigator.clipboard.writeText(acc.map(formatAccount).join('\n\n'));toast('Detail disalin.');}catch{toast('Gagal menyalin otomatis.',true);}};
 }
 
 function adminToken(){return sessionStorage.getItem('vanz_admin_token')||'';}
 function adminTabs(active){
   const groups=[
-    ['System', [['overview','Overview'],['api','API Health'],['diagnostics','Endpoint Lab'],['endpoint-map','API Map'],['limits','Limits']]],
+    ['System', [['overview','Overview'],['api','API Health'],['payment','Sewa Pay'],['diagnostics','Endpoint Lab'],['endpoint-map','API Map'],['limits','Limits']]],
     ['Order API', [['catalog','Catalog'],['supplier','Supplier'],['users','User Tools'],['balance','Balance'],['register','Register'],['qris','QRIS'],['balance-order','Order Saldo'],['deposit-admin','Deposit'],['status-admin','Status'],['browser-orders','Browser Orders'],['webhook-info','Webhook']]],
     ['Product Management', [['products','Products'],['product-detail','Product Detail'],['variations','Variations'],['stock','Stock'],['forms','Forms']]],
     ['Store Tools', [['pricing','Pricing'],['appearance','Theme'],['environment','Environment'],['security','Security'],['logs','Logs']]],
@@ -366,7 +353,7 @@ async function renderAdmin(section='overview'){
   $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_token');renderAdminLogin();};
   try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_token');toast(e.message,true);return renderAdminLogin();}
   const routes={
-    overview:adminOverview, api:adminApiHealth, diagnostics:adminDiagnostics, 'endpoint-map':adminEndpointMap, limits:adminLimits,
+    overview:adminOverview, api:adminApiHealth, payment:adminSewaPay, diagnostics:adminDiagnostics, 'endpoint-map':adminEndpointMap, limits:adminLimits,
     catalog:adminCatalog, supplier:adminSuppliers, users:adminUsers, balance:adminBalance, register:adminRegister,
     qris:adminQris, 'balance-order':adminBalanceOrder, 'deposit-admin':adminDeposit, 'status-admin':adminStatus,
     'browser-orders':adminBrowserOrders, 'webhook-info':adminWebhook,
@@ -483,6 +470,17 @@ function adminAppearance(){
 }
 
 
+
+async function adminSewaPay(){
+  const box=$('#adminContent');
+  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Menguji Sewa Pay...</span></div>';
+  try{
+    const r=await adminApi('admin_sewapay_probe');
+    const m=r?.methods||{};
+    box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Sewa Pay</h2><div class="kv"><span>Configured</span><b>${r.configured?'Yes':'No'}</b></div><div class="kv"><span>Base URL</span><b>${esc(r.base_url||'https://sewapay.id')}</b></div><div class="kv"><span>Payment methods</span><b>${esc((m.methods||[]).join(', ')||'—')}</b></div><div class="kv"><span>Binance</span><b>${m?.binance?.enabled?'Enabled':'Disabled / unknown'}</b></div></section><section class="admin-panel"><h2>Webhook</h2><p class="muted">Set URL ini di Sewa Pay → Pengaturan.</p><div class="env-box"><pre>${esc(`${location.origin}/api/sewapay-webhook`)}</pre></div><p class="muted">Webhook diverifikasi dengan HMAC-SHA256 + timestamp. Karena project belum memakai database, webhook hanya di-ack; fulfillment otomatis sengaja tidak dijalankan agar tidak terjadi double-claim stok.</p></section><section class="admin-panel wide"><h2>Raw methods response</h2><pre>${esc(JSON.stringify(m,null,2))}</pre></section></div>`;
+  }catch(e){box.innerHTML=`<div class="status-card bad"><b>Sewa Pay gagal</b><span>${esc(e.message)}</span></div>`;}
+}
+
 async function adminApiHealth(){
   const box=$('#adminContent');
   box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Membaca health + katalog...</span></div>';
@@ -501,6 +499,10 @@ async function adminApiHealth(){
 
 function adminEndpointMap(){
   const rows=[
+    ['https://sewapay.id/api/v1/payments/create','POST','Write','Create payment Sewa Pay (HMAC)'],
+    ['https://sewapay.id/api/v1/payments/status','GET','Read','Status payment Sewa Pay'],
+    ['https://sewapay.id/api/v1/payments/cancel','POST','Write','Cancel payment Sewa Pay'],
+    ['https://sewapay.id/api/v1/payments/methods','GET','Read','Payment methods Sewa Pay'],
     ['/v1/product','GET / POST','Read','Katalog + stok + variasi storefront'],
     ['/v1/register','POST','Write','Registrasi sender baru; izin khusus + rate limit'],
     ['/v1/balance','GET / POST','Read','Info user, saldo, level, point, buytotal'],

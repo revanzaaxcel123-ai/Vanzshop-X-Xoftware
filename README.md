@@ -1,3 +1,80 @@
+# HARDMAX v12 — Xoftware Catalog + Sewa Pay Payment
+
+## Arsitektur aktif
+
+Storefront v12 memisahkan provider:
+
+- **Xoftware** = source of truth katalog, variasi, harga, dan stok live melalui `GET/POST /v1/product`.
+- **Sewa Pay** = payment gateway melalui `/api/v1/payments/*`.
+- **Xoftware Order API** tetap tersedia di dashboard/diagnostic sebagai jalur legacy, tetapi tidak dipakai storefront v12 untuk membuat invoice customer.
+
+Flow storefront:
+
+```text
+Customer pilih produk
+→ server refresh katalog Xoftware
+→ server validasi product/variation + stok + harga
+→ server menghitung amount (client tidak boleh menentukan nominal)
+→ POST Sewa Pay /api/v1/payments/create
+→ QRIS tampil
+→ polling GET Sewa Pay /api/v1/payments/status
+→ status COMPLETED tampil di website
+```
+
+## Penting: payment belum sama dengan fulfillment
+
+Sewa Pay hanya mendokumentasikan payment. Xoftware Product Management memang dapat membaca `value` stok aktif dan menghapus stok, tetapi project v12 **tidak otomatis mengambil/menghapus stok setelah payment** karena project ini belum mempunyai persistent idempotency store/database. Tanpa idempotency, payment yang sama dapat direplay dan menguras lebih dari satu stok.
+
+Karena itu v12 sengaja berhenti pada status **payment completed / awaiting fulfillment**. Untuk auto-delivery aman, tambahkan database/Redis untuk menyimpan `reference -> fulfilled stock IDs`, atau pakai supplier order API yang sudah memiliki idempotency/order record.
+
+## ENV Vercel wajib
+
+```text
+XSOFTWARE_API_KEY=...
+SEWAPAY_API_KEY=pg_...
+SEWAPAY_SECRET_KEY=sk_...
+ADMIN_PASSWORD=...
+```
+
+Opsional:
+
+```text
+PAYMENT_TOKEN_SECRET=...
+SEWAPAY_TIMEOUT=25000
+SEWAPAY_WEBHOOK_MAX_SKEW=900
+```
+
+Jangan commit key asli ke GitHub/frontend. Semua secret hanya dibaca server-side.
+
+## Sewa Pay yang diimplementasikan
+
+- `POST /api/v1/payments/create` — HMAC SHA-256 `timestamp.body`
+- `GET /api/v1/payments/status` — API key + timestamp, tanpa signature sesuai catatan endpoint status
+- `POST /api/v1/payments/cancel`
+- `POST /api/v1/payments/verify-binance`
+- `GET /api/v1/payments/methods` — GET signed dengan body kosong sesuai aturan auth umum
+- webhook `/api/sewapay-webhook` — verifikasi `X-PG-Signature` + `X-PG-Timestamp`
+
+Set webhook Sewa Pay ke:
+
+```text
+https://DOMAIN-KAMU/api/sewapay-webhook
+```
+
+Webhook saat ini diverifikasi dan di-ack, tetapi tidak melakukan fulfillment karena belum ada database/idempotency store.
+
+## Security hardening
+
+- Amount dihitung ulang server dari katalog Xoftware; nominal dari browser tidak dipercaya.
+- Stok dicek ulang sebelum create payment.
+- Payment status/cancel memerlukan signed `payment_token` agar payment ID/reference tidak cukup untuk membaca/mengubah order browser lain.
+- Sewa Pay secret/API key tidak pernah dikirim ke browser.
+- Webhook memakai HMAC verification.
+
+Build: `HARDMAX-v12-SEWAPAY`
+
+---
+
 # HARDMAX v11 — Checkout Identity Fix
 
 ## Fakta API yang diverifikasi

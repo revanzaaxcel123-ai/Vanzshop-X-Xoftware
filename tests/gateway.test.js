@@ -59,7 +59,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v11');
+  assert.equal(r.body.data.build,'HARDMAX-v12-SEWAPAY');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
@@ -92,7 +92,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.status,200); assert.equal(r.body.data.state,'registered');
 
   calls.length=0;
-  r=await invoke({method:'POST',query:{a:'checkout_qris'},body:{channel:'whatsapp',sender:'08222222222',name:'New',code:'CANVA-1Y',quantity:1}});
+  r=await invoke({method:'POST',query:{a:'xo_checkout_qris'},body:{channel:'whatsapp',sender:'08222222222',name:'New',code:'CANVA-1Y',quantity:1}});
   assert.equal(r.status,200); assert.equal(r.body.data.transaction.transaction_id,'API-TX1');
   const qris=calls.find(x=>x.path==='/v1/order/qris'); assert.deepEqual(qris.body,{sender:'628222222222',code:'CANVA-1Y',quantity:1});
   const token=r.body.data.status_token;

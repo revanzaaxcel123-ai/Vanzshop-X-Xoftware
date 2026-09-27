@@ -1,10 +1,11 @@
-# HARDMAX v11
+# HARDMAX v12 Notes
 
-- Tidak menambahkan OTP karena README/API Order tidak mendokumentasikan endpoint OTP.
-- Menambah `XSOFTWARE_CHECKOUT_MODE=user|shared`.
-- Shared mode memakai satu sender Xoftware existing untuk order QRIS dan tidak meregistrasikan buyer.
-- Buyer contact tetap disimpan lokal di browser untuk riwayat order.
-- `accounts[]` hasil sukses tetap muncul di website melalui polling `/v1/order/status`.
-- Deposit publik dimatikan pada shared mode supaya saldo tidak masuk ke akun shared sender tanpa konteks.
-- Menambah admin/server action `shared_sender_probe`.
-- Build: HARDMAX-v11; asset version: 19.
+- Xoftware tetap menjadi katalog/stok.
+- Public checkout dipindahkan ke Sewa Pay.
+- Amount dihitung server dari produk/varian Xoftware.
+- QRIS Sewa Pay: create + status + cancel.
+- Binance API adapter tersedia, storefront default tetap QRIS.
+- Webhook Sewa Pay diverifikasi HMAC.
+- Auto-fulfillment stok Xoftware sengaja belum dinyalakan tanpa persistent idempotency store.
+- Xoftware legacy Order API tetap tersedia di admin/diagnostic.
+- Build marker: HARDMAX-v12-SEWAPAY.

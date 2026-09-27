@@ -1,14 +1,26 @@
-# TEST REPORT — HARDMAX v11
+# HARDMAX v12 Test Report
 
-Run locally:
+Automated checks:
 
-```text
-node --check api/xo.js
-node --check assets/xshop.js
-node tests/gateway.test.js
-node tests/shared-mode.test.js
-node tests/frontend.test.js
-node tests/package.test.js
-```
+- `node --check api/xo.js` PASS
+- `node --check api/sewapay-webhook.js` PASS
+- `node --check lib/sewapay.js` PASS
+- `node --check assets/xshop.js` PASS
+- `node tests/gateway.test.js` PASS
+- `node tests/shared-mode.test.js` PASS (legacy Xoftware path)
+- `node tests/sewapay.test.js` PASS
+- `node tests/frontend.test.js` PASS
+- `node tests/package.test.js` PASS
 
-Coverage includes documented user checkout, registration-disabled response, shared-sender checkout without `/v1/register`, order status fulfillment, catalog, admin auth, Product API limits, and stock batching.
+Sewa Pay mock coverage:
+
+- HMAC signature POST body exact JSON
+- signed GET methods with `timestamp.`
+- unsigned status GET per endpoint docs
+- create QRIS amount derived from Xoftware price
+- payment token binding to ID/reference
+- COMPLETED normalization
+- cancel payment
+- webhook signature verification primitive
+
+No real merchant credentials are embedded or used by the tests.

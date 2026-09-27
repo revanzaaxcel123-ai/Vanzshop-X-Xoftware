@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const SewaPay = require('../lib/sewapay');
 
 // README.md is the source of truth for this gateway.
 const BASE_URL = 'https://backend-s2.xoftware.id';
@@ -18,7 +19,8 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v11';
+const BUILD_ID = 'HARDMAX-v12-SEWAPAY';
+const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -284,6 +286,67 @@ async function ensureUser(sender,name){
   }
 }
 
+
+function paymentTokenSecret(){
+  if(!PAYMENT_TOKEN_SECRET) throw Object.assign(new Error('PAYMENT_TOKEN_SECRET / SEWAPAY_SECRET_KEY belum dikonfigurasi.'),{status:500});
+  return crypto.createHash('sha256').update(`vanzshop-payment:${PAYMENT_TOKEN_SECRET}`).digest();
+}
+function issuePaymentToken(payload){
+  const data={v:1,...payload};
+  const encoded=Buffer.from(JSON.stringify(data)).toString('base64url');
+  const sig=crypto.createHmac('sha256',paymentTokenSecret()).update(encoded).digest('base64url');
+  return `${encoded}.${sig}`;
+}
+function verifyPaymentToken(token){
+  if(!token||!String(token).includes('.')) return null;
+  const [encoded,sig]=String(token).split('.',2);
+  if(!encoded||!sig) return null;
+  const expected=crypto.createHmac('sha256',paymentTokenSecret()).update(encoded).digest('base64url');
+  if(!sameSecret(sig,expected)) return null;
+  try{
+    const data=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));
+    if(data?.v!==1 || Number(data?.exp||0)<Date.now()) return null;
+    return data;
+  }catch{return null;}
+}
+function effectiveProductStock(product,variation){
+  if(variation) return variation.stock==null ? null : Number(variation.stock);
+  if(product.stock!=null) return Number(product.stock);
+  const vs=Array.isArray(product.variations)?product.variations:[];
+  if(!vs.length) return null;
+  return vs.reduce((n,v)=>n+Number(v?.stock??v?.stock_count??0),0);
+}
+async function resolveCatalogSelection({product_id,variation_id,code}){
+  const c=await fetchCatalog();
+  let product=null, variation=null;
+  const pid=String(product_id??'').trim();
+  const vid=String(variation_id??'').trim();
+  const sku=String(code??'').trim();
+  if(pid) product=c.products.find(p=>String(p.id)===pid) || null;
+  if(!product && sku){
+    product=c.products.find(p=>String(p.code)===sku || (Array.isArray(p.variations)&&p.variations.some(v=>String(v.code)===sku))) || null;
+  }
+  if(!product) throw Object.assign(new Error('Produk tidak ditemukan di katalog Xoftware.'),{status:404});
+  const vars=Array.isArray(product.variations)?product.variations:[];
+  if(vid) variation=vars.find(v=>String(v.id)===vid)||null;
+  if(!variation && sku) variation=vars.find(v=>String(v.code)===sku)||null;
+  if(vars.length && !variation) throw Object.assign(new Error('Produk memiliki variasi; variation_id/SKU variasi wajib dipilih.'),{status:400});
+  const unitPrice=Number(variation?.price ?? product.price ?? 0);
+  if(!Number.isFinite(unitPrice) || unitPrice<=0) throw Object.assign(new Error('Harga produk/variasi tidak valid.'),{status:409});
+  const stock=effectiveProductStock(product,variation);
+  return {product,variation,unitPrice,stock,sku:String(variation?.code||product.code||sku),catalog:c.summary};
+}
+function normalizeSewaStatus(status){
+  const s=String(status||'').toUpperCase();
+  if(s==='COMPLETED') return 'success';
+  if(s==='FAILED') return 'fail';
+  if(s==='CANCELLED') return 'cancelled';
+  return 'pending';
+}
+function paymentReference(){
+  return `VZ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+}
+
 async function addStockBatches(productId,variationId,accounts){
   const clean=validateAccounts(accounts);
   const batches=[]; let total=0;
@@ -304,7 +367,7 @@ module.exports=async function handler(req,res){
 
   if(action==='health'){
     const shared=sharedIdentity();
-    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,checkout:{mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
+    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,payment:{provider:'sewapay',ready:SewaPay.ready(),base_url:SewaPay.BASE_URL},checkout:{mode:'sewapay',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
   }
   if(action==='webhook'){
     if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -326,7 +389,7 @@ module.exports=async function handler(req,res){
       case 'init': {
         const c=await fetchCatalog();
         const shared=sharedIdentity();
-        return ok(res,{store:{...STORE,registration:{required_for_new_users:CHECKOUT_IDENTITY_MODE==='user',endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false,otp_endpoint_documented:false},checkout:{mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel,shared_sender_masked:shared.configured?maskSender(shared.sender):''},limits:LIMITS},products:c.products,catalog:c.summary});
+        return ok(res,{store:{...STORE,registration:{required_for_new_users:false,endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false,otp_endpoint_documented:false},payment:{provider:'sewapay',configured:SewaPay.ready(),base_url:SewaPay.BASE_URL},checkout:{mode:'sewapay',fulfillment:'manual-until-idempotency-store',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel,shared_sender_masked:shared.configured?maskSender(shared.sender):''},limits:LIMITS},products:c.products,catalog:c.summary});
       }
       case 'catalog_refresh': {
         const c=await fetchCatalog();
@@ -355,7 +418,69 @@ module.exports=async function handler(req,res){
         const prepared=await ensureUser(sender,name);
         return ok(res,{...prepared,channel,sender,email,checkout_mode:'user'});
       }
-      case 'checkout_qris': {
+      case 'payment_methods': {
+        const response=await SewaPay.getMethods();
+        return ok(res,{provider:'sewapay',response});
+      }
+      case 'payment_create': {
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        if(!SewaPay.ready()) return fail(res,'Sewa Pay belum dikonfigurasi di Vercel.',503);
+        const b=bodyOf(req), quantity=int(b.quantity,0), paymentMethod=str(b.method||'QRIS',20).toUpperCase();
+        if(!['QRIS','BINANCE'].includes(paymentMethod)) return fail(res,'Metode payment harus QRIS atau BINANCE.');
+        if(quantity<1||quantity>20) return fail(res,'quantity wajib 1-20.');
+        const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
+        if(sel.stock!=null && sel.stock<quantity) return fail(res,'Stok Xoftware tidak mencukupi.',409,{stock:sel.stock,requested:quantity});
+        const amount=Math.round(sel.unitPrice*quantity);
+        const reference=paymentReference();
+        const description=str(`${sel.product.title}${sel.variation?` - ${sel.variation.title||sel.variation.name}`:''} x${quantity}`,160);
+        const payment=await SewaPay.createPayment({amount,method:paymentMethod,reference,description});
+        const paymentId=str(payment?.id,160);
+        if(!paymentId) return fail(res,'Sewa Pay tidak mengembalikan payment id.',502,payment);
+        const expiresAt=Date.parse(String(payment?.expires_at||''));
+        const token=issuePaymentToken({
+          payment_id:paymentId,reference,product_id:sel.product.id,variation_id:sel.variation?.id??null,
+          code:sel.sku,quantity,amount,method:paymentMethod,
+          exp:Number.isFinite(expiresAt)?expiresAt+24*60*60*1000:Date.now()+48*60*60*1000,
+        });
+        return ok(res,{
+          provider:'sewapay',payment,payment_token:token,
+          order:{product_id:sel.product.id,variation_id:sel.variation?.id??null,code:sel.sku,product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',quantity,unit_price:sel.unitPrice,stock_at_checkout:sel.stock},
+          fulfillment:{mode:'manual',reason:'Pembayaran dan inventori sudah terhubung, tetapi auto-delivery dari stok Product Management memerlukan idempotency store agar payment yang sama tidak dapat menguras stok berulang kali.'}
+        },201);
+      }
+      case 'payment_status': {
+        const b=bodyOf(req), token=str(b.payment_token||q(req,'payment_token'),5000), paymentId=str(b.id||q(req,'id'),160), reference=str(b.reference||q(req,'reference'),160);
+        let signed;
+        try{ signed=verifyPaymentToken(token); }catch(e){ return fail(res,e.message,e.status||500); }
+        if(!signed) return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        if(paymentId && paymentId!==String(signed.payment_id)) return fail(res,'Payment id tidak cocok dengan token.',401);
+        if(reference && reference!==String(signed.reference)) return fail(res,'Reference tidak cocok dengan token.',401);
+        const response=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
+        const status=normalizeSewaStatus(response?.status);
+        return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment:{status:status==='success'?'payment-complete-awaiting-fulfillment':'not-ready',automatic:false}});
+      }
+      case 'payment_cancel': {
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req); let signed;
+        try{ signed=verifyPaymentToken(str(b.payment_token,5000)); }catch(e){ return fail(res,e.message,e.status||500); }
+        if(!signed) return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        const response=await SewaPay.cancelPayment(String(signed.payment_id));
+        return ok(res,{provider:'sewapay',response});
+      }
+      case 'payment_verify_binance': {
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req); let signed;
+        try{ signed=verifyPaymentToken(str(b.payment_token,5000)); }catch(e){ return fail(res,e.message,e.status||500); }
+        if(!signed) return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        const response=await SewaPay.verifyBinance(String(signed.payment_id),str(b.binance_order_id,200));
+        return ok(res,{provider:'sewapay',response});
+      }
+      case 'admin_sewapay_probe': {
+        if(requireAdmin(req,res)) return;
+        const methods=await SewaPay.getMethods();
+        return ok(res,{configured:SewaPay.ready(),base_url:SewaPay.BASE_URL,methods});
+      }
+      case 'xo_checkout_qris': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
         const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase();
         const sender=normalizeSender(b.sender,channel), name=str(b.name,120), code=str(b.code,100), quantity=int(b.quantity,0), email=str(b.email,160).toLowerCase();
@@ -414,7 +539,7 @@ module.exports=async function handler(req,res){
       case 'admin_ping': {
         if(requireAdmin(req,res)) return;
         const shared=sharedIdentity();
-        return ok(res,{authenticated:true,build:BUILD_ID,store:STORE.name,base_url:BASE_URL,checkout_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_sender_masked:shared.configured?maskSender(shared.sender):''});
+        return ok(res,{authenticated:true,build:BUILD_ID,store:STORE.name,base_url:BASE_URL,payment_provider:'sewapay',sewapay_ready:SewaPay.ready(),checkout_mode:'sewapay',legacy_xoftware_checkout_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_sender_masked:shared.configured?maskSender(shared.sender):''});
       }
 
       case 'diag_product': {
