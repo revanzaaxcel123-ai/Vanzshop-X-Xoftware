@@ -4,7 +4,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
-const BUILD_ID = 'HARDMAX-v8';
+const BUILD_ID = 'HARDMAX-v9';
 window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -80,10 +80,11 @@ function apiUrl(a, query={}){
   Object.entries(query).forEach(([k,v])=>{ if(v !== '' && v != null) u.searchParams.set(k,v); });
   return u;
 }
-async function requestApi(a,{method='GET',body=null,query={},adminPassword=''}={}){
+async function requestApi(a,{method='GET',body=null,query={},adminToken='',adminPassword=''}={}){
   const headers = {};
   if(body !== null) headers['content-type']='application/json';
-  if(adminPassword) headers['x-admin-password']=adminPassword;
+  if(adminToken) headers['authorization']=`Bearer ${adminToken}`;
+  else if(adminPassword) headers['x-admin-password']=adminPassword;
   const res = await fetch(apiUrl(a,query),{
     method,
     headers,
@@ -99,7 +100,7 @@ async function requestApi(a,{method='GET',body=null,query={},adminPassword=''}={
   return j.data ?? j;
 }
 const api = (a, body=null, query={}) => requestApi(a,{method:body===null?'GET':'POST',body,query});
-const adminApi = (a,{method='GET',body=null,query={}}={}) => requestApi(a,{method,body,query,adminPassword:sessionStorage.getItem('vanz_admin_password')||''});
+const adminApi = (a,{method='GET',body=null,query={}}={}) => requestApi(a,{method,body,query,adminToken:sessionStorage.getItem('vanz_admin_token')||''});
 
 function toast(message,bad=false){
   let box=$('.toast-stack');
@@ -321,16 +322,16 @@ function showSuccess(o,accountsOverride){
   const b=$('#copyAll');if(b)b.onclick=async()=>{try{await navigator.clipboard.writeText(acc.map(formatAccount).join('\n\n'));toast('Detail disalin.');}catch{toast('Gagal menyalin otomatis.',true);}};
 }
 
-function adminPass(){return sessionStorage.getItem('vanz_admin_password')||'';}
+function adminToken(){return sessionStorage.getItem('vanz_admin_token')||'';}
 function adminTabs(active){
   const tabs=[['overview','Koneksi API'],['diagnostics','Diagnostik'],['users','User'],['products','Produk'],['stock','Stok'],['appearance','Tampilan']];
   return `<div class="admin-tabs">${tabs.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`;
 }
 async function renderAdmin(section='overview'){
-  if(!adminPass())return renderAdminLogin();
+  if(!adminToken())return renderAdminLogin();
   shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin · ${BUILD_ID}</span><h1>Kontrol VanzShop</h1><p>Operasi produk/user langsung ke Xoftware. Pengaturan tampilan dapat dipreview dan diekspor ke env Vercel.</p></div><button class="btn" id="adminLogout">Keluar</button></div>${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></main>`,'admin');
-  $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_password');renderAdminLogin();};
-  try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_password');toast(e.message,true);return renderAdminLogin();}
+  $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_token');renderAdminLogin();};
+  try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_token');toast(e.message,true);return renderAdminLogin();}
   if(section==='diagnostics')return adminDiagnostics();
   if(section==='users')return adminUsers();
   if(section==='products')return adminProducts();
@@ -340,7 +341,23 @@ async function renderAdmin(section='overview'){
 }
 function renderAdminLogin(){
   shell(`<main class="admin-login wrap"><section class="login-card"><span class="section-kicker">Admin</span><h1>Dashboard toko</h1><p>Password ini dibandingkan dengan <code>ADMIN_PASSWORD</code> di server.</p><label class="form-field"><span>Admin password</span><input id="adminPassword" class="input big" type="password" autocomplete="current-password" placeholder="Masukkan password"></label><button id="adminLoginBtn" class="btn btn-primary btn-buy">Masuk dashboard</button></section></main>`,'admin');
-  $('#adminLoginBtn').onclick=async()=>{const pw=String($('#adminPassword').value||'');if(!pw){toast('Password wajib diisi.',true);return;}sessionStorage.setItem('vanz_admin_password',pw);try{await adminApi('admin_ping');location.hash='#/admin/overview';renderAdmin('overview');}catch(e){sessionStorage.removeItem('vanz_admin_password');toast(e.message,true);}};
+  $('#adminLoginBtn').onclick=async()=>{
+    const pw=String($('#adminPassword').value||'').trim();
+    if(!pw){toast('Password wajib diisi.',true);return;}
+    const btn=$('#adminLoginBtn'); btn.disabled=true; btn.textContent='Memeriksa...';
+    try{
+      const login=await requestApi('admin_login',{method:'POST',body:{password:pw}});
+      if(!login?.token) throw new Error('Server tidak mengembalikan admin token.');
+      sessionStorage.setItem('vanz_admin_token',login.token);
+      location.hash='#/admin/overview';
+      await renderAdmin('overview');
+    }catch(e){
+      sessionStorage.removeItem('vanz_admin_token');
+      toast(e.message,true);
+      btn.disabled=false; btn.textContent='Masuk dashboard';
+    }
+  };
+  $('#adminPassword').onkeydown=e=>{if(e.key==='Enter')$('#adminLoginBtn').click();};
 }
 async function adminOverview(){
   const box=$('#adminContent');

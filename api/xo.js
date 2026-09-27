@@ -5,9 +5,14 @@ const crypto = require('crypto');
 // README.md is the source of truth for this gateway.
 const BASE_URL = 'https://backend-s2.xoftware.id';
 const API_KEY = String(process.env.XSOFTWARE_API_KEY || '').trim();
-const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '').trim();
+function envSecret(v){
+  let s=String(v||'').trim();
+  if(s.length>=2 && ((s.startsWith('\"')&&s.endsWith('\"'))||(s.startsWith("'")&&s.endsWith("'")))) s=s.slice(1,-1).trim();
+  return s;
+}
+const ADMIN_PASSWORD = envSecret(process.env.ADMIN_PASSWORD);
 const TIMEOUT_MS = Math.max(5000, Math.min(60000, Number(process.env.XSOFTWARE_TIMEOUT || 25000)));
-const BUILD_ID = 'HARDMAX-v8';
+const BUILD_ID = 'HARDMAX-v9';
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -81,9 +86,33 @@ function clamp(v,min,max,def){ const n=int(v,def); return Math.max(min,Math.min(
 function queryString(values){ const sp=new URLSearchParams(); for(const [k,v] of Object.entries(values||{})){ if(v!==''&&v!==undefined&&v!==null)sp.set(k,String(v)); } const s=sp.toString(); return s?`?${s}`:''; }
 function getHeader(req,name){ const h=req?.headers||{}; return String(h[String(name).toLowerCase()] ?? h[name] ?? ''); }
 function sameSecret(a,b){ const aa=Buffer.from(String(a||'')), bb=Buffer.from(String(b||'')); return aa.length>0 && aa.length===bb.length && crypto.timingSafeEqual(aa,bb); }
+function adminTokenSecret(){ return crypto.createHash('sha256').update(`admin-session:${ADMIN_PASSWORD}`).digest(); }
+function issueAdminToken(){
+  const payload={v:1,iat:Date.now(),exp:Date.now()+12*60*60*1000,build:BUILD_ID};
+  const encoded=Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig=crypto.createHmac('sha256',adminTokenSecret()).update(encoded).digest('base64url');
+  return `${encoded}.${sig}`;
+}
+function verifyAdminToken(token){
+  if(!ADMIN_PASSWORD||!token||!String(token).includes('.')) return false;
+  const [encoded,sig]=String(token).split('.',2);
+  if(!encoded||!sig) return false;
+  const expected=crypto.createHmac('sha256',adminTokenSecret()).update(encoded).digest('base64url');
+  if(!sameSecret(sig,expected)) return false;
+  try{
+    const payload=JSON.parse(Buffer.from(encoded,'base64url').toString('utf8'));
+    return payload?.v===1 && Number(payload?.exp)>Date.now();
+  }catch{return false;}
+}
+function bearerToken(req){
+  const raw=getHeader(req,'authorization').trim();
+  return /^Bearer\s+/i.test(raw)?raw.replace(/^Bearer\s+/i,'').trim():'';
+}
 function requireAdmin(req,res){
   if(!ADMIN_PASSWORD){ fail(res,'ADMIN_PASSWORD belum dikonfigurasi.',503); return true; }
-  if(!sameSecret(getHeader(req,'x-admin-password'),ADMIN_PASSWORD)){ fail(res,'Akses admin ditolak.',401); return true; }
+  const token=bearerToken(req);
+  const legacy=getHeader(req,'x-admin-password');
+  if(!verifyAdminToken(token) && !sameSecret(legacy,ADMIN_PASSWORD)){ fail(res,'Akses admin ditolak.',401); return true; }
   return false;
 }
 function signStatus(id){ return crypto.createHmac('sha256',API_KEY).update(`order-status:${String(id)}`).digest('hex'); }
@@ -265,6 +294,13 @@ module.exports=async function handler(req,res){
     const b=bodyOf(req); const event=str(b.event,80), transaction_id=str(b.transaction_id,160);
     if(!event||!transaction_id) return fail(res,'Payload webhook tidak lengkap.',400);
     return ok(res,{received:true,event,transaction_id});
+  }
+  if(action==='admin_login'){
+    if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+    if(!ADMIN_PASSWORD) return fail(res,'ADMIN_PASSWORD belum dikonfigurasi.',503);
+    const supplied=envSecret(bodyOf(req).password);
+    if(!sameSecret(supplied,ADMIN_PASSWORD)) return fail(res,'Akses admin ditolak.',401);
+    return ok(res,{authenticated:true,token:issueAdminToken(),expires_in:43200,build:BUILD_ID});
   }
   if(!API_KEY) return fail(res,'XSOFTWARE_API_KEY belum dikonfigurasi di Vercel.',500);
 

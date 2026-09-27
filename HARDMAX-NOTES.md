@@ -29,7 +29,7 @@ Perubahan teknis:
 - `vercel.json` me-rewrite `/admin` dan `/admin/*` ke `index.html`.
 - Router frontend membaca hash route terlebih dahulu, lalu pathname `/admin` sebagai fallback.
 - Admin tidak lagi menunggu katalog di-load sebelum menampilkan login/dashboard.
-- Build marker `HARDMAX-v8` ditampilkan di dashboard dan dikembalikan endpoint `health`/`admin_ping`.
+- Build marker `HARDMAX-v9` ditampilkan di dashboard dan dikembalikan endpoint `health`/`admin_ping`.
 - Asset version dinaikkan ke `v=16` untuk memaksa browser mengambil bundle baru setelah redeploy.
 
 ### Diagnostic dashboard
@@ -71,3 +71,11 @@ ADMIN_PASSWORD=PASSWORD_ADMIN_YANG_KUAT
 ```
 
 Theme/kontak toko tetap opsional melalui `.env.example`.
+
+
+## v9 Admin Auth Fix
+- Login admin sekarang POST password sekali ke `?a=admin_login`.
+- Server mengeluarkan signed session token 12 jam.
+- Request admin berikutnya memakai `Authorization: Bearer <token>`.
+- `ADMIN_PASSWORD` di Vercel ditoleransi jika tanpa sengaja dibungkus tanda kutip.
+- Password field ditrim dan Enter bisa submit.

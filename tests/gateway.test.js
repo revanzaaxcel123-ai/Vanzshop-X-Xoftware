@@ -57,7 +57,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v8');
+  assert.equal(r.body.data.build,'HARDMAX-v9');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
@@ -97,6 +97,11 @@ function invoke({method='GET',query={},body,headers={}}={}){
 
   r=await invoke({method:'POST',query:{a:'order_status'},body:{transaction_id:'API-TX1',status_token:token}});
   assert.equal(r.status,200); assert.equal(r.body.data.transaction.status,'success');
+
+  r=await invoke({method:'POST',query:{a:'admin_login'},body:{password:'wrong'}}); assert.equal(r.status,401);
+  r=await invoke({method:'POST',query:{a:'admin_login'},body:{password:'test-admin'}}); assert.equal(r.status,200); assert.ok(r.body.data.token);
+  const adminToken=r.body.data.token;
+  r=await invoke({query:{a:'admin_ping'},headers:{authorization:`Bearer ${adminToken}`}}); assert.equal(r.status,200);
 
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'wrong'}}); assert.equal(r.status,401);
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'test-admin'}}); assert.equal(r.status,200); assert.equal(r.body.data.summary.count,2);

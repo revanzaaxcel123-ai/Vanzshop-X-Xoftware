@@ -717,3 +717,7 @@ Kode HTTP	Penjelasan
 403	Akses IP diblokir (tidak masuk whitelist IP bot).
 404	Produk, variasi, form, atau akun stok tidak ditemukan.
 500	Terjadi kesalahan internal pada server.
+
+
+### Admin login v9
+Dashboard tidak lagi mengirim `ADMIN_PASSWORD` pada setiap request. Password divalidasi satu kali oleh `admin_login`, lalu browser memakai signed session token selama 12 jam. Setelah mengubah `ADMIN_PASSWORD` di Vercel, lakukan redeploy Production.
