@@ -7,7 +7,7 @@ const BASE_URL = 'https://backend-s2.xoftware.id';
 const API_KEY = String(process.env.XSOFTWARE_API_KEY || '').trim();
 const ADMIN_PASSWORD = String(process.env.ADMIN_PASSWORD || '').trim();
 const TIMEOUT_MS = Math.max(5000, Math.min(60000, Number(process.env.XSOFTWARE_TIMEOUT || 25000)));
-const BUILD_ID = 'HARDMAX-v7';
+const BUILD_ID = 'HARDMAX-v8';
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),

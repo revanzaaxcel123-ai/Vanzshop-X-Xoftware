@@ -1,10 +1,10 @@
-# HARDMAX implementation notes — v7
+# HARDMAX implementation notes — v8
 
 `README.md` asli dipertahankan sebagai source of truth API.
 
-## Fokus v7
+## Fokus v8
 
-v7 mempertahankan fondasi v6 yang sudah berhasil membaca katalog/stok Xoftware dan mengeraskan jalur admin + diagnostic endpoint.
+v8 mempertahankan fondasi v6 yang sudah berhasil membaca katalog/stok Xoftware dan mengeraskan jalur admin + diagnostic endpoint.
 
 ### Storefront
 
@@ -29,8 +29,8 @@ Perubahan teknis:
 - `vercel.json` me-rewrite `/admin` dan `/admin/*` ke `index.html`.
 - Router frontend membaca hash route terlebih dahulu, lalu pathname `/admin` sebagai fallback.
 - Admin tidak lagi menunggu katalog di-load sebelum menampilkan login/dashboard.
-- Build marker `HARDMAX-v7` ditampilkan di dashboard dan dikembalikan endpoint `health`/`admin_ping`.
-- Asset version dinaikkan ke `v=15` untuk memaksa browser mengambil bundle baru setelah redeploy.
+- Build marker `HARDMAX-v8` ditampilkan di dashboard dan dikembalikan endpoint `health`/`admin_ping`.
+- Asset version dinaikkan ke `v=16` untuk memaksa browser mengambil bundle baru setelah redeploy.
 
 ### Diagnostic dashboard
 

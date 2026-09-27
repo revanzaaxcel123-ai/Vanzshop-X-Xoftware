@@ -1,0 +1,14 @@
+'use strict';
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const root = path.resolve(__dirname, '..');
+const admin = fs.readFileSync(path.join(root,'admin.html'),'utf8');
+const vercel = JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'));
+const js = fs.readFileSync(path.join(root,'assets','xshop.js'),'utf8');
+assert.equal(vercel.cleanUrls, true);
+assert.ok(fs.existsSync(path.join(root,'admin.html')));
+assert.ok(admin.includes('/assets/xshop.js?v=16'));
+assert.ok(js.includes("const BUILD_ID = 'HARDMAX-v8';"));
+assert.ok(js.includes("p==='/admin'||p.startsWith('/admin/')"));
+console.log('PASS package.test.js');

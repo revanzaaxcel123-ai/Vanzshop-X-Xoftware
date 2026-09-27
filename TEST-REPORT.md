@@ -1,4 +1,4 @@
-# TEST REPORT — HARDMAX v7
+# TEST REPORT — HARDMAX v8
 
 Basis kontrak: `README.md` di root project.
 
@@ -30,11 +30,11 @@ Result: **PASS**.
 - Pagination Product Management dipaksa max 20/page.
 - Stok 205 akun dibagi otomatis menjadi 100 + 100 + 5.
 - Judul produk >100 karakter ditolak lokal.
-- Frontend mengandung build marker `HARDMAX-v7`.
+- Frontend mengandung build marker `HARDMAX-v8`.
 - Router admin menerima **dua bentuk URL**: `/admin` dan `/#/admin`.
 - Vercel rewrite `/admin` dan `/admin/*` diarahkan ke SPA `index.html`.
-- Asset cache-buster dinaikkan ke `v=15`.
+- Asset cache-buster dinaikkan ke `v=16`.
 
 ## Batas verifikasi
 
-Test ini menggunakan mock response yang mengikuti README. Tidak ada API key produksi di file project, jadi sesi build ini **tidak melakukan request nyata ke akun Xoftware user**. Setelah deploy, buka `/admin` atau `/#/admin`, lalu cek build `HARDMAX-v7` dan gunakan tab **Diagnostik** untuk probe live menggunakan API key Vercel milik user.
+Test ini menggunakan mock response yang mengikuti README. Tidak ada API key produksi di file project, jadi sesi build ini **tidak melakukan request nyata ke akun Xoftware user**. Setelah deploy, buka `/admin` atau `/#/admin`, lalu cek build `HARDMAX-v8` dan gunakan tab **Diagnostik** untuk probe live menggunakan API key Vercel milik user.

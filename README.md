@@ -1,3 +1,9 @@
+# VanzShop X Xoftware — HARDMAX v8
+
+## Admin route fix
+
+`/admin` sekarang dilayani oleh file fisik `admin.html` dengan `cleanUrls: true`, bukan bergantung pada rewrite SPA. Fallback `/#/admin` tetap didukung.
+
 Xoftware Official Documentation
 Selamat datang di pusat dokumentasi teknis Xoftware. Di sini tersedia panduan lengkap integrasi API, referensi endpoint teknis, dan petunjuk penggunaan sistem.
 
