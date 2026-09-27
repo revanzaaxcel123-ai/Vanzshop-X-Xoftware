@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Detail Produk</title>
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    body{padding-bottom:80px}
+    .container{max-width:1200px;margin:40px auto;padding:0 20px}
+    .top{display:grid;grid-template-columns:280px 1fr;gap:24px;align-items:center}
+    .logo-card{background:#0e1320;border-radius:20px;box-shadow:0 14px 30px rgba(0,0,0,.28);padding:24px;display:flex;align-items:center;justify-content:center}
+    .logo-card img{width:200px;height:200px;object-fit:contain;border-radius:16px;background:#fff}
+    .panel{background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.06);border-radius:18px;padding:20px}
+    .badges{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+    .badge{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);padding:6px 10px;border-radius:999px;font-size:12px}
+    .pill{display:inline-block;padding:6px 12px;border-radius:999px;border:1px solid rgba(255,255,255,.12);font-size:13px;background:rgba(255,255,255,.06)}
+    .subtitle{margin-top:10px;opacity:.9}
+    .bar-warn{margin-top:14px;background:#2a2139;color:#ffcc66;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.06);font-size:12px}
+    .seg{margin:30px 0 10px;display:flex;align-items:center;gap:8px}
+    .search{position:relative;margin-bottom:18px}
+    .search input{width:100%;background:#101526;border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:12px 14px;color:#fff}
+    .gridv{display:grid;gap:14px;grid-template-columns:repeat(3,minmax(0,1fr))}
+    .vcard{background:#0f1524;border:1px solid rgba(255,255,255,.06);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+    .vtop{display:flex;justify-content:space-between;align-items:center;font-size:13px}
+    .stock{color:#2bdc74;font-weight:600;display:flex;align-items:center;gap:6px}
+    .price{display:flex;justify-content:space-between;align-items:center}
+    .rp{font-weight:700}
+    .cut{text-decoration:line-through;opacity:.6;font-size:12px}
+    .disc{background:#ff4d4f;color:#fff;border-radius:6px;font-size:12px;padding:3px 6px;margin-left:8px}
+    .btn.buy{background:#d4af37;color:#111;border:none;border-radius:10px;padding:8px 10px;font-weight:700;cursor:pointer}
+    @media(max-width:980px){.gridv{grid-template-columns:repeat(2,minmax(0,1fr))} .top{grid-template-columns:1fr} .logo-card{order:-1;justify-content:flex-start} }
+  #recos{display:none!important}
+#reco-title{display:none!important}
+</style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+    <!-- BEGIN: GOLD THEME + BASE STYLES -->
+    <style>
+      :root{
+        --bg:#0b0b12; --text:#eaeaea; --muted:#9aa0a6;
+        --card:#12131c; --card-2:#171926;
+        --gold-1:#FFE9A3; --gold-2:#F8D37A; --gold-3:#E8B84E; --gold-4:#C6922E; --gold-5:#7A5B17;
+        --ring:rgba(255, 215, 128, .35);
+        --meteor-density: 1;
+      }
+      html[data-theme="light"]{
+        --bg:#f8fafc; --text:#0f172a; --muted:#475569;
+        --card:#ffffff; --card-2:#f1f5f9;
+        --ring:rgba(198,146,46,.25);
+      }
+      body{background:var(--bg); color:var(--text); font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;}
+      .container{max-width:1100px;margin:auto;padding:16px}
+      .gold-text{
+        background:linear-gradient(120deg,var(--gold-1),var(--gold-3) 45%,var(--gold-1) 60%,var(--gold-4));
+        -webkit-background-clip:text;background-clip:text;color:transparent;
+        text-shadow:0 0 12px rgba(255,210,120,.12);
+      }
+      .btn-gold{
+        display:inline-flex;align-items:center;gap:8px;padding:10px 16px;border-radius:14px;
+        background:linear-gradient(180deg,var(--gold-2),var(--gold-4));
+        color:#1a1206;border:1px solid rgba(198,146,46,.75);
+        box-shadow:0 6px 18px rgba(198,146,46,.25), inset 0 1px 0 rgba(255,255,255,.25);
+        transition:transform .2s ease, box-shadow .2s ease;
+        text-decoration:none;
+      }
+      .btn-gold:hover{transform:translateY(-1px); box-shadow:0 10px 24px rgba(198,146,46,.35), inset 0 1px 0 rgba(255,255,255,.35)}
+      .gold-ring{outline:2px solid var(--ring); outline-offset:2px; border-radius:16px}
+      .header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+      .theme-switch{background:var(--card);border:1px solid rgba(255,255,255,.08);padding:8px 12px;border-radius:12px;cursor:pointer;color:var(--text)}
+      #meteor-canvas{ position:fixed; inset:0; z-index:-1; pointer-events:none;
+        background: radial-gradient(1200px 800px at 10% -10%, rgba(120,120,255,.08), transparent 60%),
+                    radial-gradient(1200px 800px at 90% -10%, rgba(255,200,120,.08), transparent 60%),
+                    #0b0b12;
+      }
+      .meteor-contrast { position: relative; z-index: 1; }
+      @media (max-width: 480px){ :root{ --meteor-density:.6 } }
+    </style>
+    <!-- END: GOLD THEME + BASE STYLES -->
+    
+
+<!-- BEGIN VANZ FOOTER CSS -->
+
+<style>
+  /* Footer Pro - VanzShop */
+  .vanz-footer{margin-top:36px;background:var(--card);}
+  .vanz-footer .inner{max-width:1100px;margin:auto;padding:18px 16px;}
+  .vanz-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px}
+  .vanz-feature{display:flex;gap:10px;align-items:flex-start;background:var(--card-2);border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.06)}
+  .vanz-feature b{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:10px;background:linear-gradient(180deg,var(--gold-2),var(--gold-4));color:#1a1206;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+  .vanz-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:6px}
+  .vanz-cols h4{margin:0 0 6px;font-size:15px;color:var(--gold-2)}
+  .vanz-cols a{display:block;color:var(--text);opacity:.9;text-decoration:none;margin:4px 0;font-size:14px}
+  .vanz-cols a:hover{opacity:1;text-decoration:underline}
+  .vanz-social{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .vanz-social a{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:12px;text-decoration:none;color:#1a1206;background:linear-gradient(180deg,var(--gold-2),var(--gold-4));border:1px solid rgba(198,146,46,.6)}
+  .vanz-social svg{width:18px;height:18px}
+  .vanz-badge{display:inline-block;background:var(--card-2);border:1px dashed rgba(198,146,46,.6);padding:8px 12px;border-radius:12px;margin-top:8px;color:var(--text);}
+</style>
+
+<!-- END VANZ FOOTER CSS -->
+
+<style>
+  .home-link{ color:inherit; text-decoration:none; }
+  .home-link:focus, .home-link:hover{ text-decoration:underline; text-underline-offset:3px; }
+</style>
+</head>
+<body>
+
+    <!-- BEGIN: HEADER + METEOR CANVAS -->
+    <canvas id="meteor-canvas"></canvas>
+    <header class="header container">
+      <h1 class="gold-text" style="font-size:28px; margin:8px 0;"><a href="/" class="home-link" aria-label="Kembali ke beranda">VanzShop.id</a></h1>
+      <button id="themeToggle" class="theme-switch">🌙 Dark</button>
+    </header>
+    <!-- END: HEADER + METEOR CANVAS -->
+    
+  <div class="container">
+    <a href="/" style="opacity:.8;text-decoration:underline">← Kembali</a>
+    <div class="top">
+      <div class="logo-card"><img id="pimg" src="" alt="Logo"></div>
+      <div class="panel">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <h2 id="ptitle" style="margin:0">Produk</h2>
+          <span class="badge" id="pcat">DESAIN</span>
+          <span class="badge">👁 768</span>
+          <span class="badge">🔥 75</span>
+          <span class="badge">🔗 Share</span>
+        </div>
+        <p class="subtitle" id="pdesc"></p>
+        <div class="bar-warn">Kamu belum login, jumlah pembelian akan dibatasi. Silahkan Login terlebih dahulu.</div>
+      </div>
+    </div>
+
+    <h3 class="seg" id="variants"><span class="pill">Variants</span></h3>
+    <div class="search"><input id="q" placeholder="Cari varian produk"></div>
+    <div class="gridv" id="vgrid"></div>
+
+    <h3 class="seg" id="reco-title"><span class="pill">Produk Lainnya</span></h3>
+    <div class="grid" id="recos"></div>
+  </div>
+
+  <script>
+  const ASSETS = {
+    canva: "/assets/canva.jpg",
+    capcut: "/assets/capcut.jpg",
+    chatgpt: "/assets/chatgpt.jpg",
+    alightmotion: "/assets/alightmotion.jpg",
+    spotify: "/assets/spotify.jpg",
+    youtube: "/assets/youtube.jpg",
+    zoom: "/assets/zoom.jpg",
+    netflix: "/assets/netflix.jpg"
+  };
+
+  const PRODUCTS = {
+    canva: {
+      title: "Canva",
+      category: "Desain",
+      desc: "Canva Pro adalah versi premium dari platform desain...ng ingin membuat desain lebih cepat, kreatif, dan profesional.",
+      image: ASSETS.canva,
+      variants: [
+        { name: "Canva Pro – Member 30 Hari", price: 2000, cut: 5000, disc: 60, stock: "TERSEDIA" },
+        { name: "Canva Pro – Famhead 30 Hari", price: 2500, cut: 10000, disc: 75, stock: "TERSEDIA 28" },
+        { name: "Canva Pro – Famhead 60 Hari", price: 4000, cut: 10000, disc: 60, stock: "TERSEDIA 973" },
+        { name: "Canva Lifetime – Member", price: 10000, cut: 25000, disc: 60, stock: "TERSEDIA" },
+        { name: "Canva Lifetime – Famhead", price: 300000, cut: 500000, disc: 40, stock: "TERSISA 7" }
+      ],
+      recos: ["capcut","chatgpt","alightmotion"]
+    },
+    capcut: { title: "CapCut", category: "Musik & Video", image: ASSETS.capcut, variants: [{ name: "CapCut Pro – 7 Hari", price: 2000, cut: 2500, disc: 20, stock: "TERSEDIA 996" }, { name: "CapCut Pro – 30 Hari", price: 3000, cut: 10000, disc: 70, stock: "TERSEDIA 831" }, { name: "CapCut Pro – 180 Hari", price: 100000, cut: 250000, disc: 60, stock: "TERSEDIA 996" }] },
+    chatgpt: { title: "ChatGPT", category: "Productivity", image: ASSETS.chatgpt, variants: [{ name: "ChatGPT Plus – 7 Hari", price: 10000, cut: 50000, disc: 80, stock: "TERSEDIA 943" }, { name: "ChatGPT Team – JasPay", price: 25000, cut: 100000, disc: 75, stock: "TERSEDIA 838" }, { name: "ChatGPT Plus – 1 Bulan", price: 30000, cut: 100000, disc: 70, stock: "TERSEDIA 928" }] },
+    alightmotion: { title: "Alight Motion", category: "Desain", image: ASSETS.alightmotion, variants: [{ name: "Alight Motion Pro – 5 Bulan", price: 5000, cut: 50000, disc: 90, stock: "TERSEDIA 772" }, { name: "Alight Motion Pro – 1 Tahun", price: 7000, cut: 50000, disc: 86, stock: "TERSEDIA 978" }] },
+    youtube: { title: "YouTube", category: "Musik & Video", image: ASSETS.youtube, variants: [{ name: "YouTube Premium – 1 Bulan", price: 5000, cut: 10000, disc: 50, stock: "TERSEDIA 765" }, { name: "YouTube Premium – 3 Bulan", price: 20000, cut: 50000, disc: 60, stock: "TERSEDIA 746" }] },
+    
+    zoom: { title: "Zoom", category: "Productivity", image: ASSETS.zoom,
+      variants: [
+  { name: "Zoom – 2 Minggu", price: 2000, cut: 7000, disc: 72, stock: "TERSEDIA 999" },
+  { name: "Zoom – 1 Bulan",  price: 5000, cut: 12000, disc: 58, stock: "TERSEDIA 999" }
+]
+    },
+
+    netflix: { title: "Netflix Premium", category: "Musik & Video", image: ASSETS.netflix,
+      variants: [
+  { name: "Sharing 1 Bulan", price: 12000, cut: 25000, disc: 52, stock: "TERSEDIA 999" },
+  { name: "Private 1 Bulan", price: 24000, cut: 50000, disc: 52, stock: "TERSEDIA 999" }
+]
+    },
+spotify: { title: "Spotify", category: "Musik & Video", image: ASSETS.spotify, variants: [{ name: "Spotify Premium – 1 Bulan", price: 3000, cut: 15000, disc: 80, stock: "TERSEDIA 997" }] }
+  };
+
+  const rupiah = n => "Rp. " + n.toLocaleString('id-ID');
+  const params = new URLSearchParams(location.search);
+  const slug = (location.pathname.split('/').pop() || params.get('slug') || 'canva').toLowerCase();
+  const data = PRODUCTS[slug] || PRODUCTS.canva;
+
+  document.title = data.title + " – Detail";
+  document.getElementById('ptitle').textContent = data.title;
+  document.getElementById('pcat').textContent = data.category.toUpperCase();
+  document.getElementById('pdesc').textContent = data.desc || "";
+  document.getElementById('pimg').src = data.image;
+
+  const grid = document.getElementById('vgrid');
+  function item(v){
+    return '<div class="vcard">'
+      + '<div class="vtop"><div>' + v.name + '</div><div class="stock">✔ ' + v.stock + '</div></div>'
+      + '<div class="price"><div><div class="rp">' + rupiah(v.price) + '</div><div class="cut">' + rupiah(v.cut) + '</div></div>'
+      + '<div><span class="disc">' + v.disc + '%</span></div></div>'
+      + '<div style="display:flex;justify-content:flex-end"><button class="btn buy">Beli</button></div>'
+      + '</div>';
+  }
+  function render(list){ grid.innerHTML = list.map(item).join(''); }
+  render(data.variants);
+
+  const q = document.getElementById('q');
+  q.addEventListener('input', e => {
+    const s = q.value.toLowerCase();
+    render(data.variants.filter(v => v.name.toLowerCase().includes(s)));
+  });
+
+  const recs = document.getElementById('recos');
+  function card(sl){
+    const p = PRODUCTS[sl];
+    return '<div class="card">'
+      + '<a href="/beli/' + sl + '"><img src="' + p.image + '" alt="' + p.title + '"></a>'
+      + '<div class="meta"><span class="badge">' + p.category + '</span><h3><a href="/beli/' + sl + '">' + p.title + '</a></h3></div>'
+      + '</div>';
+  }
+  recs.innerHTML = (data.recos||[]).map(card).join('');
+  if (location.hash === '#variants') document.getElementById('variants').scrollIntoView({behavior:'smooth'});
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+  <script src="../assets/js/banner-default.js"></script>
+
+  <!-- QRIS PAYMENT BOX -->
+  <div class="qris-box" style="border:1px dashed #999;border-radius:16px;padding:16px;text-align:center;margin-top:20px">
+    <p style="margin-top:0"><strong>Atau scan QRIS ini untuk bayar:</strong></p>
+    <img src="/assets/qris.jpg" alt="QRIS VanzShop" style="max-width:260px;width:100%;height:auto;display:inline-block" />
+    <p style="font-size:.9rem;opacity:.8">Setelah bayar, kirim bukti di WhatsApp ya.</p>
+    <p><a class="btn" href="https://wa.me/62895415204928?text=Halo%20Admin%2C%20saya%20sudah%20bayar%20via%20QRIS.%20Mohon%20diproses%20pesanannya." target="_blank" rel="noopener">Kirim Bukti via WhatsApp</a></p>
+  </div>
+
+
+<script>
+(function(){
+  const WA_NUMBER = "62895415204928"; // nomor WA admin
+  const enc = s => encodeURIComponent(s);
+  const rupiah = n => "Rp. " + (Number(n)||0).toLocaleString('id-ID');
+  function slugify(){
+    const p = new URLSearchParams(location.search).get('slug');
+    const f = (location.pathname.split('/').pop() || '').trim();
+    return (p || f || 'canva').toLowerCase();
+  }
+  function buildMsg(productTitle, variantName, price, slug){
+    return [
+      "Halo Admin VanzShop 👋",
+      "",
+      "*Saya ingin order:*",
+      `• Produk  : ${productTitle} (${slug})`,
+      `• Varian  : ${variantName}`,
+      `• Qty     : 1`,
+      `• Harga   : ${rupiah(price)}`,
+      "",
+      "Mohon info ketersediaan & cara pembayarannya ya 🙏"
+    ].join("\n");
+  }
+
+  // Ambil info produk dari header halaman (fallback ke slug sebagai title)
+  function getProductTitle(){
+    const h = document.getElementById('ptitle');
+    if (h && h.textContent.trim()) return h.textContent.trim();
+    return slugify();
+  }
+
+  // Delegasi klik: .vcard dan .btn.buy
+  document.addEventListener('click', (e)=>{
+    const buy = e.target.closest('.btn.buy');
+    const card = buy ? buy.closest('.vcard') : e.target.closest('.vcard');
+    if (!card) return;
+    // Cegah a[href] default kalau varian sudah <a>
+    e.preventDefault();
+
+    const nameEl = card.querySelector('.name');
+    const priceEl = card.querySelector('.rp');
+    const variantName = (card.dataset && card.dataset.variantName) || (nameEl ? nameEl.textContent.trim() : 'Varian');
+    // Ambil angka dari "Rp. 2.000"
+    const priceText = priceEl ? priceEl.textContent.replace(/[^\d]/g,'') : "0";
+    const price = Number(priceText)||0;
+    const title = getProductTitle();
+    const slug = slugify();
+    const msg = buildMsg(title, variantName, price, slug);
+    const url = `https://wa.me/${WA_NUMBER}?text=${enc(msg)}`;
+    window.location.href = url;
+  }, true);
+})();
+</script>
+
+
+    <!-- BEGIN: RECOMMENDED + TESTIMONIAL + FAQ -->
+    <section class="container" id="rekomendasi" style="margin-top:28px">
+      <h2 class="gold-text" style="font-size:22px;margin-bottom:12px;">Recommended Products</h2>
+      <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px">
+        <article class="gold-ring" style="background:var(--card);border-radius:16px;padding:14px">
+          <h3 style="margin:0 0 6px">Canva Premium</h3>
+          <div style="color:var(--muted);font-size:14px;margin-bottom:8px">Unlock semua fitur Pro</div>
+          <div style="font-size:14px;line-height:1.6">
+            <div>Pro 1 Bulan — Rp 2.000</div>
+            <div>Pro 2 Bulan — Rp 3.000</div>
+            <div>Lifetime — Rp 15.000</div>
+          </div>
+          <a href="/beli/?slug=canva" class="btn-gold" style="margin-top:10px;display:inline-flex">Beli Sekarang</a>
+        </article>
+        <article class="gold-ring" style="background:var(--card);border-radius:16px;padding:14px">
+          <h3 style="margin:0 0 6px">Netflix Premium</h3>
+          <div style="color:var(--muted);font-size:14px;margin-bottom:8px">HD s/d 4K, nonton tanpa batas</div>
+          <div style="font-size:14px;line-height:1.6">
+            <div>Sharing 1 Bulan — Rp 12.000</div>
+            <div>Private 1 Bulan — Rp 25.000</div>
+          </div>
+          <a href="/beli/?slug=netflix" class="btn-gold" style="margin-top:10px;display:inline-flex">Beli Sekarang</a>
+        </article>
+        <article class="gold-ring" style="background:var(--card);border-radius:16px;padding:14px">
+          <h3 style="margin:0 0 6px">CapCut Pro</h3>
+          <div style="color:var(--muted);font-size:14px;margin-bottom:8px">Edit video profesional</div>
+          <div style="font-size:14px;line-height:1.6">
+            <div>Pro 7 Hari — Rp 3.000</div>
+            <div>Pro 1 Bulan — Rp 5.000</div>
+            <div>Bulk 1 Bulan (5 pcs) — Rp 20.000</div>
+          </div>
+          <a href="/beli/?slug=capcut" class="btn-gold" style="margin-top:10px;display:inline-flex">Beli Sekarang</a>
+        </article>
+        <article class="gold-ring" style="background:var(--card);border-radius:16px;padding:14px">
+          <h3 style="margin:0 0 6px">YouTube Premium</h3>
+          <div style="color:var(--muted);font-size:14px;margin-bottom:8px">Tanpa iklan, background play</div>
+          <div style="font-size:14px;line-height:1.6">
+            <div>1 Bulan — Rp 5.000</div>
+            <div>2 Bulan — Rp 9.000</div>
+            <div>3 Bulan — Rp 12.000</div>
+          </div>
+          <a href="/beli/?slug=youtube" class="btn-gold" style="margin-top:10px;display:inline-flex">Beli Sekarang</a>
+        </article>
+      </div>
+    </section>
+
+    <section class="container" id="testimoni" style="margin-top:24px">
+      <h2 class="gold-text" style="font-size:22px;margin-bottom:10px;">Apa kata mereka</h2>
+      <div class="t-wrap gold-ring" style="background:var(--card);padding:10px;overflow:auto;scroll-snap-type:x mandatory;display:flex;gap:12px;border-radius:16px;">
+        <article class="t-card" style="min-width:80%;scroll-snap-align:center;background:var(--card-2);border-radius:16px;padding:16px;display:flex;gap:12px;align-items:center;">
+          <img src="data:image/svg+xml;utf8,<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><circle cx='36' cy='36' r='34' fill='%23F8D37A'/><text x='50%' y='54%' text-anchor='middle' font-size='28' font-family='Inter' fill='%237A5B17'>AN</text></svg>" alt="Avatar" style="width:56px;height:56px;border-radius:50%;box-shadow:0 0 0 3px rgba(198,146,46,.35)">
+          <div><strong>Andi Nugraha</strong><div style="color:var(--muted);font-size:14px">Pelapak Shopee</div><p style="margin:8px 0 0">“Order Netflix & Canva ngebut, admin fast-respon. Harga waras!”</p></div>
+        </article>
+        <article class="t-card" style="min-width:80%;scroll-snap-align:center;background:var(--card-2);border-radius:16px;padding:16px;display:flex;gap:12px;align-items:center;">
+          <img src="data:image/svg+xml;utf8,<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><circle cx='36' cy='36' r='34' fill='%23E8B84E'/><text x='50%' y='54%' text-anchor='middle' font-size='28' font-family='Inter' fill='%231a1206'>SR</text></svg>" alt="Avatar" style="width:56px;height:56px;border-radius:50%;box-shadow:0 0 0 3px rgba(198,146,46,.35)">
+          <div><strong>Sari Rahma</strong><div style="color:var(--muted);font-size:14px">Content Creator</div><p style="margin:8px 0 0">“CapCut Pro & YouTube Premium mantap, iklan hilang semua.”</p></div>
+        </article>
+        <article class="t-card" style="min-width:80%;scroll-snap-align:center;background:var(--card-2);border-radius:16px;padding:16px;display:flex;gap:12px;align-items:center;">
+          <img src="data:image/svg+xml;utf8,<?xml version='1.0'?><svg xmlns='http://www.w3.org/2000/svg' width='72' height='72'><circle cx='36' cy='36' r='34' fill='%23C6922E'/><text x='50%' y='54%' text-anchor='middle' font-size='28' font-family='Inter' fill='%23ffffff'>RK</text></svg>" alt="Avatar" style="width:56px;height:56px;border-radius:50%;box-shadow:0 0 0 3px rgba(198,146,46,.35)">
+          <div><strong>Raka</strong><div style="color:var(--muted);font-size:14px">Mahasiswa</div><p style="margin:8px 0 0">“Pembayaran QRIS gampang, akun langsung dikirim ke WA.”</p></div>
+        </article>
+      </div>
+    </section>
+
+    <section class="container" id="faq" style="margin-top:28px;margin-bottom:28px;">
+      <h2 class="gold-text" style="font-size:22px;margin-bottom:10px;">FAQ</h2>
+      <details class="gold-ring" style="background:var(--card);padding:14px;border-radius:14px;margin-bottom:10px">
+        <summary style="cursor:pointer">Bagaimana proses setelah bayar?</summary>
+        <div style="color:var(--muted);margin-top:8px">Kirim bukti bayar via WA/Grup. Order diproses otomatis & akun dikirim cepat.</div>
+      </details>
+      <details class="gold-ring" style="background:var(--card);padding:14px;border-radius:14px;margin-bottom:10px">
+        <summary style="cursor:pointer">Garansi gimana?</summary>
+        <div style="color:var(--muted);margin-top:8px">Garansi sesuai deskripsi produk. Jika kendala login, bantu tukar selama masa garansi.</div>
+      </details>
+      <details class="gold-ring" style="background:var(--card);padding:14px;border-radius:14px;">
+        <summary style="cursor:pointer">Metode pembayaran?</summary>
+        <div style="color:var(--muted);margin-top:8px">QRIS all payment. Bukti pembayaran wajib disertakan untuk validasi.</div>
+      </details>
+    </section>
+    <!-- END: RECOMMENDED + TESTIMONIAL + FAQ -->
+    
+
+    <!-- BEGIN: THEME TOGGLE + METEOR + TESTI JS -->
+    <script>
+    (function(){
+      const html=document.documentElement, btn=document.getElementById('themeToggle');
+      if(btn){
+        const saved=localStorage.getItem('theme'); if(saved) html.setAttribute('data-theme', saved);
+        updateBtn();
+        btn.addEventListener('click', ()=>{
+          const cur=html.getAttribute('data-theme')==='light'?'dark':'light';
+          html.setAttribute('data-theme',cur); localStorage.setItem('theme',cur); updateBtn();
+        });
+        function updateBtn(){ const isLight=html.getAttribute('data-theme')==='light'; btn.textContent=isLight?'☀️ Light':'🌙 Dark'; }
+      }
+    })();
+    </script>
+    <script>
+    (() => {
+      const c = document.getElementById('meteor-canvas');
+      if(!c) return;
+      const ctx = c.getContext('2d');
+      let W, H, DPR = Math.min(2, window.devicePixelRatio || 1);
+      const densityBase = 0.9;
+      const densityMul = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--meteor-density')) || 1;
+      const density = densityBase * densityMul;
+      const meteors = [];
+      const maxTrail = 0.08;
+      const speedMin = 0.35, speedMax = 0.9;
+      const spawnEvery = 240;
+      const angleDeg = 22; const angle = angleDeg * Math.PI/180;
+      function resize(){
+        W = c.width  = Math.floor(innerWidth * DPR);
+        H = c.height = Math.floor(innerHeight * DPR);
+        c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px';
+      }
+      resize(); addEventListener('resize', resize);
+      function rand(a,b){ return a + Math.random()*(b-a); }
+      function spawn(){
+        const diag = Math.hypot(W,H);
+        const trail = rand(0.02, maxTrail) * diag;
+        const speed = rand(speedMin, speedMax) * (diag/1300);
+        const x0 = rand(-0.2*W, 0.15*W);
+        const y0 = rand(-0.25*H, 0.15*H);
+        const vx = Math.cos(angle) * speed;
+        const vy = Math.sin(angle) * speed;
+        const thick = rand(1.0, 2.2) * DPR;
+        const hue = 46; // emas dominan
+        const sat = 92, lig = 62, alp = 0.95;
+        meteors.push({
+          x: x0*DPR, y: y0*DPR, vx, vy, trail, life: 0, maxLife: rand(900, 2100),
+          thick, color: `hsla(${hue} ${sat}% ${lig}% / ${alp})`,
+          glow: `hsla(${hue} ${sat}% ${Math.min(90, lig+18)}% / .55)`
+        });
+      }
+      let spawnTimer = 0, last = performance.now();
+      function tick(now){
+        const dt = now - last; last = now;
+        spawnTimer += dt;
+        if(spawnTimer > spawnEvery / density){ spawn(); spawnTimer = 0; }
+        ctx.setTransform(1,0,0,1,0,0);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(0,0,0,0.08)';
+        ctx.fillRect(0,0,W,H);
+        for(let i=meteors.length-1;i>=0;i--){
+          const m = meteors[i];
+          m.x += m.vx*dt; m.y += m.vy*dt; m.life += dt;
+          const bx = m.x - Math.cos(angle)*m.trail;
+          const by = m.y - Math.sin(angle)*m.trail;
+          const grad = ctx.createLinearGradient(bx,by,m.x,m.y);
+          grad.addColorStop(0, 'transparent');
+          grad.addColorStop(0.7, m.glow);
+          grad.addColorStop(1, m.color);
+          ctx.strokeStyle = grad; ctx.lineWidth = m.thick; ctx.lineCap = 'round';
+          ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(m.x, m.y); ctx.stroke();
+          if(m.life > m.maxLife || m.x > W+200 || m.y > H+200) meteors.splice(i,1);
+        }
+        requestAnimationFrame(tick);
+      }
+      document.addEventListener('visibilitychange', () => { if(document.hidden) last = performance.now(); });
+      requestAnimationFrame(tick);
+    })();
+    </script>
+    <script>
+    (() => {
+      const wrap=document.querySelector('#testimoni .t-wrap');
+      if(!wrap) return;
+      let t; wrap.addEventListener('scroll', ()=>{
+        clearTimeout(t);
+        t=setTimeout(()=>{
+          const cards=[...wrap.querySelectorAll('.t-card')];
+          let best=cards[0], dMin=1e9;
+          const wrapRect = wrap.getBoundingClientRect();
+          const mid = wrapRect.left + wrap.clientWidth/2;
+          cards.forEach(c=>{
+            const r=c.getBoundingClientRect(); const cMid=r.left + r.width/2;
+            const dist=Math.abs(cMid - mid);
+            if(dist<dMin){dMin=dist;best=c;}
+          });
+          best.scrollIntoView({inline:'center',behavior:'smooth',block:'nearest'});
+        },120);
+      });
+    })();
+    </script>
+    <!-- END: THEME TOGGLE + METEOR + TESTI JS -->
+    
+
+<!-- BEGIN VANZ FOOTER HTML -->
+
+<footer class="vanz-footer">
+  <div class="inner">
+    <div id="vanzFeatMount" class="vanz-features"></div>
+
+    <div class="vanz-badge">⚙️ Auto Order lewat <b>WhatsApp</b> / <b>Telegram</b>. Cepat & otomatis setelah pembayaran terverifikasi.</div>
+
+    <div class="vanz-cols">
+      <div>
+        <h4>VanzShop.id</h4>
+        <a href="mailto:revanzabussines@gmail.com">Email: revanzabussines@gmail.com</a>
+        <a href="https://wa.me/62895415204928" target="_blank" rel="noopener">WhatsApp: 0895-4152-04928</a>
+        <a href="https://instagram.com/revanza_axcell" target="_blank" rel="noopener">Instagram: @revanza_axcell</a>
+      </div>
+      <div>
+        <h4>Informasi</h4>
+        <a href="/#produk">Produk</a>
+        <a href="/#keunggulan">Keunggulan</a>
+        <a href="https://wa.me/62895415204928" target="_blank" rel="noopener">Tanya Admin</a>
+      </div>
+      <div>
+        <h4>Kebijakan</h4>
+        <a href="/#refund">Pengembalian sesuai syarat</a>
+        <a href="/#privacy">Privasi & keamanan</a>
+        <span style="display:block;margin-top:6px;color:var(--muted);font-size:13px">Copyright © 2025 VanzShop</span>
+      </div>
+    </div>
+
+    <div class="vanz-social">
+      <a href="https://chat.whatsapp.com/DQ2PsowpGt5FxhQDAS2sAz?mode=r_t" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M20.52 3.48A11.5 11.5 0 0 0 3.48 20.52L2 22l1.7-.44a11.5 11.5 0 1 0 16.82-18.08Z" stroke="#1a1206" stroke-width="1.2"/>
+          <path d="M7.5 9.5c.3 2.1 2.5 4.3 4.6 4.6.5.1 1-.2 1.2-.6l.4-.9c.1-.2 0-.4-.2-.6l-1-.4c-.2-.1-.4 0-.5.1l-.3.3c-.2.2-.5.2-.8.1-1-.5-1.8-1.3-2.3-2.3-.1-.3 0-.6.1-.8l.3-.3c.1-.1.2-.3.1-.5l-.4-1c-.1-.2-.3-.3-.6-.2l-.9.4c-.4.1-.7.7-.6 1.2Z" fill="#1a1206"/>
+        </svg>
+        Join Grup WA
+      </a>
+      <a href="https://t.me/+_w79GzVP52ViMjU1" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M21.9 4.6c.3-.9-.6-1.7-1.5-1.3L2.6 10.7c-1 .4-.9 1.8.1 2l4.6 1.2 1.7 4.9c.3 1 1.7 1.1 2.1.1l2.3-4.8 5.2 4.1c.8.6 2 .1 2.2-.9L21.9 4.6Z" fill="#1a1206"/></svg>
+        Join Grup Telegram
+      </a>
+      <a href="#" title="YouTube (isi link channel kamu)">
+        <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M23 7s-.2-1.5-.8-2.2c-.7-.8-1.5-.8-1.9-.9C17.7 3.5 12 3.5 12 3.5h0s-5.7 0-8.3.4c-.4.1-1.2.1-1.9.9C.2 5.5 0 7 0 7S0 8.6 0 10.2v1.6C0 13.4.2 15 1.8 15.6c.7.3 3.4.4 3.4.4S9.1 16.2 12 16.2s6.8-.1 6.8-.1.7 0 1.4-.3c1.6-.6 1.8-2.2 1.8-2.2s.2-1.6.2-3.2V10.2C23.2 8.6 23 7 23 7Zm-13 6.1V6.9l6.2 3.1-6.2 3.1Z" fill="#1a1206"/></svg>
+        YouTube
+      </a>
+    </div>
+  </div>
+</footer>
+
+<!-- END VANZ FOOTER HTML -->
+
+<!-- BEGIN VANZ FOOTER JS -->
+
+<script>
+// Pindahkan fitur "Proses Instan / Transaksi Aman / Support 24/7" ke footer jika ada
+(function(){
+  const mount = document.getElementById('vanzFeatMount');
+  if(!mount) return;
+  const textMatches = /(Proses Instan|Transaksi Aman|Support\s*24\/7)/i;
+  let target = null;
+  document.querySelectorAll('section, div').forEach(el=>{
+    const t = (el.textContent||'').trim();
+    if(textMatches.test(t) && el.querySelector('*')){
+      if(el.closest('.vanz-footer')) return;
+      if(el.clientHeight>80 && el.clientWidth>200){
+        if(!target || el.clientWidth > target.clientWidth){ target = el; }
+      }
+    }
+  });
+  if(target){
+    const candidates=[...target.querySelectorAll('div,article,li,section')];
+    let pushed=0;
+    candidates.forEach(c=>{
+      const txt=(c.textContent||'').trim();
+      if(/Proses Instan/i.test(txt) || /Transaksi Aman/i.test(txt) || /Support\s*24\/7/i.test(txt)){
+        const cloned=c.cloneNode(true);
+        cloned.classList.add('vanz-feature');
+        const icon=document.createElement('b'); icon.textContent='✓'; cloned.prepend(icon);
+        mount.appendChild(cloned); pushed++;
+      }
+    });
+    if(!pushed) fallback();
+  }else{
+    fallback();
+  }
+
+  function fallback(){
+    const items=[
+      ['✓','Proses Instan','Pengerjaan cepat setelah pembayaran terkonfirmasi.'],
+      ['🛡️','Transaksi Aman','Dukungan admin & garansi sesuai ketentuan.'],
+      ['💬','Support 24/7','Hubungi WhatsApp kapan saja untuk bantuan.']
+    ];
+    items.forEach(it=>{
+      const el=document.createElement('div'); el.className='vanz-feature';
+      const b=document.createElement('b'); b.textContent=it[0];
+      const box=document.createElement('div');
+      box.innerHTML=`<strong>${it[1]}</strong><div style="color:var(--muted);font-size:14px">${it[2]}</div>`;
+      el.appendChild(b); el.appendChild(box); mount.appendChild(el);
+    });
+  }
+})();
+</script>
+
+<!-- END VANZ FOOTER JS -->
+</body>
+</html>

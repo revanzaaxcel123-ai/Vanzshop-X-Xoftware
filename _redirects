@@ -1,0 +1,2 @@
+/beli/:slug   /beli/index.html?slug=:slug   200
+/* /index.html 200
