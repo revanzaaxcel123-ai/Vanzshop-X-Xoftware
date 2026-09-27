@@ -1,193 +1,713 @@
-# VanzShop.com × Xoftware — v5 Verified Docs
+Xoftware Official Documentation
+Selamat datang di pusat dokumentasi teknis Xoftware. Di sini tersedia panduan lengkap integrasi API, referensi endpoint teknis, dan petunjuk penggunaan sistem.
 
-Versi ini dikunci mengikuti dokumentasi yang diberikan: Order API, Product Management, dan Syarat & Ketentuan API Xoftware. Tidak ada login email API yang dibuat-buat karena dokumentasi Order hanya mendefinisikan `sender` sebagai nomor WhatsApp atau ID Telegram.
+Fitur & Layanan API
+🚀 API Order: Panduan integrasi pembelian produk, registrasi user, order saldo, dan pembayaran QRIS.
+📦 API Produk: Panduan integrasi manajemen katalog produk toko, variasi, dan pengelolaan persediaan stok akun.
+🔄 API Reseller: Integrasi transaksi produk otomatis langsung ke Star Seller.
+⚖️ Ketentuan Layanan: Syarat, ketentuan penggunaan layanan, dan kebijakan teknis.
+Informasi Server & Autentikasi
+Base URL
+Request API diarahkan ke base URL berikut:
 
-## Fakta penting dari dokumentasi
-
-- User baru dibuat lewat `POST /v1/register` dengan `sender` + `name`.
-- Fitur register **memerlukan aktivasi izin khusus di tingkat penyedia layanan**. Kalau Xoftware membalas `API Registration is disabled for this bot`, kode tidak dapat membypass izin tersebut.
-- Registrasi dibatasi **maksimal 3 per menit**; HTTP `429` ditangani dan ditampilkan jelas.
-- Checkout QRIS memakai `POST /v1/order/qris` dengan `sender`, `code`, `quantity`.
-- Produk dari supplier/provider yang muncul di Order API ditandai `is_reseller=true` dan **tetap didukung melalui Order API**. Storefront tidak lagi menganggap produk ini harus diblokir.
-- Endpoint `/v1/reseller-api/*` tetap diperlakukan terpisah sebagai H2H/admin karena order di jalur itu memakai `reseller_saldo`.
-- Deposit dibatasi Rp1.000–Rp1.000.000.
-- Product Management: stok 100 akun/request, maksimal 30 variasi/produk, 20 produk/page, judul 100 karakter, desc/snk 5.000 karakter, SKU 3–50 huruf/angka/dash.
-
-# VanzShop.com × Xoftware — v4 Hardened
-
-Storefront statis + Vercel Node.js Function untuk Xoftware Order API, Product Management API, dan Reseller API.
-
-## Perubahan v4
-
-### 1. Registrasi user sebelum checkout
-
-Flow storefront sekarang mengikuti dokumentasi Xoftware secara literal:
-
-1. Pembeli menyimpan identitas user di menu **Akun**.
-2. `sender` hanya menggunakan jenis yang didokumentasikan Xoftware:
-   - nomor WhatsApp, atau
-   - Telegram ID.
-3. Website mengecek user dengan `POST /v1/balance`.
-4. Jika user belum ditemukan, gateway mencoba `POST /v1/register` dengan `sender` + `name`.
-5. Jika API Registration dinonaktifkan di bot Xoftware, checkout dihentikan. Kode **tidak** mengganti sender pembeli dengan sender toko secara diam-diam.
-6. Setelah user valid/terdaftar, checkout QRIS dikirim ke `POST /v1/order/qris` dengan sender user tersebut.
-
-> Dokumentasi Xoftware menyatakan endpoint register memerlukan aktivasi izin khusus pada tingkat penyedia layanan. Jika muncul `API Registration is disabled for this bot`, izin tersebut harus diaktifkan atau user harus didaftarkan melalui alur resmi Xoftware sebelum checkout.
-
-Email hanya informasi lokal/opsional di storefront. Dokumentasi Order API tidak mendefinisikan email sebagai nilai `sender`.
-
-### 2. Gambar produk
-
-- Reseller API mendokumentasikan field `thumbnail`, jadi thumbnail upstream digunakan jika ada.
-- Order API untuk katalog owner tidak mendokumentasikan field image/thumbnail.
-- Karena itu owner product memakai asset fallback lokal di `assets/brands/*.svg`.
-- Tidak lagi bergantung ke CDN logo eksternal untuk fallback utama.
-- Jika upstream benar-benar mengirim URL gambar valid, gambar upstream tetap diprioritaskan.
-
-### 3. Dashboard admin
-
-Buka:
-
-```text
-https://domain-kamu/#/admin
-```
-
-Login menggunakan `ADMIN_PASSWORD`.
-
-Dashboard menyediakan:
-
-- status konfigurasi API,
-- register/check user Xoftware,
-- list/create/update/delete produk,
-- tambah/list/delete stok,
-- cek saldo dan riwayat Reseller API,
-- preview theme/style,
-- generator environment variables untuk konfigurasi global Vercel.
-
-Project tetap **no database**. Perubahan tampilan dari dashboard disimpan sebagai preview lokal di browser. Untuk menerapkan theme ke semua visitor, gunakan ENV hasil generator dashboard di Vercel lalu redeploy.
-
-## Environment variables
-
-### Wajib
-
-```text
-XSOFTWARE_API_KEY=YOUR_REAL_XOFTWARE_API_KEY
-ADMIN_PASSWORD=PASSWORD_ADMIN_PANJANG_DAN_UNIK
-```
-
-### Opsional
-
-```text
-XSOFTWARE_DEFAULT_SENDER=
-XSOFTWARE_DEFAULT_NAME=VanzShop.com
-XSOFTWARE_TIMEOUT=25000
-CATALOG_SOURCE=owner
-```
-
-`XSOFTWARE_DEFAULT_SENDER` tidak digunakan sebagai fallback checkout publik. Field ini hanya default untuk beberapa operasi admin.
-
-### Identitas toko
-
-```text
-STORE_NAME=VanzShop.com
-STORE_TAGLINE=Produk digital pilihan, stok live, checkout otomatis.
-STORE_WHATSAPP=
-STORE_TELEGRAM=
-STORE_EMAIL=
-```
-
-Kontak boleh dikosongkan. Jangan isi data palsu.
-
-### Tampilan global
-
-```text
-STORE_THEME=dark
-STORE_ACCENT=#f3c74f
-STORE_RADIUS=20
-STORE_COLUMNS=5
-STORE_DENSITY=compact
-STORE_HERO=true
-```
-
-## API Xoftware yang digunakan
-
-Base URL hardcoded server-side:
-
-```text
 https://backend-s2.xoftware.id
-```
+text
+Autentikasi API Key
+Setiap request wajib menyertakan API Key pada Header HTTP:
 
-Semua request upstream memakai header:
-
-```text
-x-api-key: XSOFTWARE_API_KEY
+x-api-key: YOUR_API_KEY
 Content-Type: application/json
-```
+bash
+API Key dapat diperoleh melalui dashboard bot pada menu Pengaturan -> Manajemen API.
 
-### Order API
+Gunakan menu navigasi di sebelah kiri untuk melihat referensi endpoint spesifik beserta parameter request dan contoh response.
 
-| Fungsi | Endpoint |
-|---|---|
-| katalog | `/v1/product` |
-| register user | `/v1/register` |
-| cek user/saldo | `/v1/balance` |
-| order saldo | `/v1/order/balance` |
-| order QRIS | `/v1/order/qris` |
-| status order | `/v1/order/status` |
-| deposit | `/v1/deposit` |
+Dokumentasi API - Xoftware Order
+Versi: 1.1.0
+Status: Produksi
+Penyusun: Xoftware Developer Team
 
-### Product Management API
+Selamat datang di Dokumentasi API Xoftware Order. API ini memungkinkan integrasi sistem pihak ketiga untuk melakukan manajemen produk, registrasi pengguna, pengecekan saldo, deposit, serta transaksi produk digital melalui platform kami.
 
-Prefix `/v1/products`. Gateway mencakup forms, CRUD produk, CRUD variasi, dan stok.
+1. Informasi Dasar
+Base Path
+Semua akses endpoint API Order menggunakan prefix path: /v1/
 
-Hard limit yang diterapkan:
+Autentikasi
+API ini menggunakan metode autentikasi X-API-Key. API Key harus disertakan pada setiap request di bagian Header.
 
-- produk maksimal 20 per page,
-- stok maksimal 100 per request,
-- stok >100 otomatis dibatch 100 + 100 + ...,
-- SKU 3–50 karakter, huruf/angka/dash,
-- variasi dikelola lewat endpoint resmi Xoftware.
+Header	Wajib	Deskripsi
+X-API-Key	
+Wajib
+API Key yang diperoleh dari dashboard owner Anda.
+Content-Type	
+Wajib
+application/json
+2. Endpoint Khusus
+2.1 Cek Daftar Produk
+Mengambil daftar stok dan variasi produk yang tersedia.
 
-### Reseller API
+URL Path: product
+Method: GET / POST
+Response Body (Data)
+Field	Tipe	Deskripsi
+id	number	ID unik produk.
+title	string	Nama atau judul produk.
+code	string	Kode unik produk (SKU).
+is_reseller	boolean	true jika produk dari supplier/provider.
+price	number	Harga akhir produk (setelah diskon).
+original_price	number	Harga asli produk sebelum diskon.
+discount	number	Nominal potongan harga.
+point	number	Poin yang didapatkan (jika ada).
+sold	number	Jumlah produk yang telah terjual.
+stock	number	Jumlah stok yang tersedia saat ini.
+description	string	Deskripsi lengkap produk.
+is_variation	boolean	true jika produk memiliki variasi.
+variations	array	Daftar objek variasi produk.
+Contoh Response
+{
+  "status": true,
+  "data": [
+    {
+      "id": 1,
+      "title": "Produk Contoh",
+      "code": "PRD01",
+      "price": 9000,
+      "original_price": 10000,
+      "discount": 1000,
+      "is_reseller": false,
+      "stock": 50,
+      "description": "Deskripsi produk...",
+      "is_variation": false,
+      "variations": []
+    }
+  ]
+}
+json
+2.2 Registrasi Pengguna Baru
+Mendaftarkan identitas pengguna baru ke dalam database. Fitur ini memerlukan aktivasi izin khusus pada tingkat penyedia layanan.
 
-Prefix `/v1/reseller-api/`.
+URL Path: register
+Method: POST
+Request Body
+Field	Tipe	Wajib	Deskripsi
+sender	string	
+Wajib
+Nomor WhatsApp atau ID Telegram pengguna.
+name	string	
+Wajib
+Nama tampilan pengguna.
+Response Body (Data)
+Field	Tipe	Deskripsi
+id	number	ID unik pengguna di sistem.
+name	string	Nama pengguna yang terdaftar.
+sender	string	Nomor atau ID identitas pengguna.
+saldo	number	Saldo awal pengguna (default 0).
+Contoh Response
+{
+  "status": true,
+  "message": "User registered successfully",
+  "data": {
+    "id": 123,
+    "name": "Iqbal",
+    "sender": "628xxx",
+    "saldo": 0
+  }
+}
+json
+2.3 Cek Saldo & Informasi Pengguna
+Mendapatkan informasi saldo terkini dan level pengguna.
 
-Reseller order hanya admin-only karena dokumentasi menyatakan:
+URL Path: balance
+Method: GET / POST
+Request (Query/Body)
+Field	Tipe	Wajib	Deskripsi
+sender	string	
+Wajib
+Nomor WhatsApp atau ID Telegram pengguna.
+Response Body (Data)
+Field	Tipe	Deskripsi
+id	number	ID unik pengguna.
+name	string	Nama profil pengguna.
+sender	string	Identitas pengirim (ID/Nomor).
+lid	string	ID Level pengguna (misal: "L-12345").
+saldo	number	Saldo tersedia saat ini.
+saldoused	number	Total saldo yang telah digunakan.
+buytotal	number	Total jumlah item yang pernah dibeli.
+point	number	Jumlah poin yang dimiliki.
+level	string	Nama level keanggotaan (misal: "GOLD", "BASIC").
+Contoh Response
+{
+  "status": true,
+  "data": {
+    "id": 123,
+    "name": "Iqbal",
+    "sender": "628xxx",
+    "lid": "L-12345",
+    "saldo": 50000,
+    "saldoused": 100000,
+    "buytotal": 10,
+    "point": 100,
+    "level": "GOLD"
+  }
+}
+json
+3. Transaksi & Pembayaran
+3.1 Pembelian via Saldo (Balance)
+Melakukan pembelian produk secara instan menggunakan saldo akun pengguna.
 
-- server harus masuk IP whitelist,
-- order langsung memotong `reseller_saldo`,
-- akun dikirim realtime pada response.
+URL Path: order/balance
+Method: POST
+Request Body
+Field	Tipe	Wajib	Deskripsi
+sender	string	
+Wajib
+Nomor WhatsApp atau ID Telegram pembeli.
+code	string	
+Wajib
+Kode produk (SKU).
+quantity	number	
+Wajib
+Jumlah yang ingin dibeli.
+Response Body (Data)
+Field	Tipe	Deskripsi
+transaction_id	number	ID unik transaksi di sistem (Recap ID).
+total_price	number	Total biaya yang dipotong dari saldo.
+status	string	Status transaksi (biasanya "success").
+accounts	array	Daftar data akun/item yang dibeli.
+Contoh Response
+{
+  "status": true,
+  "message": "Order Successful",
+  "data": {
+    "transaction_id": 9991,
+    "total_price": 20000,
+    "status": "success",
+    "accounts": [
+      { "email": "user1@demo.com", "pass": "pw123" },
+      { "email": "user2@demo.com", "pass": "pw123" }
+    ]
+  }
+}
+json
+3.2 Pembelian via QRIS (Bayar Langsung)
+Membuat invoice pembayaran QRIS untuk pembelian produk tertentu.
 
-Karena itu storefront publik **tidak** memakai `/reseller-api/order` sebagai payment customer.
+URL Path: order/qris
+Method: POST
+Request Body
+Sama dengan pembelian via saldo (Section 3.1).
 
-## Flow user storefront
+Response Body (Data)
+Field	Tipe	Deskripsi
+transaction_id	string	Kode referensi pembayaran (Reff ID).
+amount	number	Nominal dasar pembelian.
+total_to_pay	number	Nominal akhir yang harus dibayar (termasuk fee).
+qr_string	string	Raw string QRIS untuk generate QR code.
+link	string	URL halaman pembayaran (Xoftware Checkout).
+expired_at	number	Timestamp kedaluwarsa invoice.
+status	string	Status awal invoice ("pending").
+Contoh Response
+{
+  "status": true,
+  "data": {
+    "transaction_id": "API-12345678",
+    "amount": 10000,
+    "total_to_pay": 10700,
+    "qr_string": "00020101021126...",
+    "link": "https://pay.xoftware.id/...",
+    "expired_at": 1713251234,
+    "status": "pending"
+  }
+}
+json
+3.3 Request Deposit (Top-up Saldo)
+Membuat permintaan pengisian saldo akun pengguna.
 
-Menu **Akun** menyediakan:
+URL Path: deposit
+Method: POST
+Request Body
+Field	Tipe	Wajib	Rentang	Deskripsi
+sender	string	
+Wajib
+-	Identitas pengguna yang melakukan top-up.
+amount	number	
+Wajib
+1.000 - 1.000.000	Nominal saldo yang diinginkan.
+Response Body (Data)
+Struktur respon sama dengan Pembelian via QRIS (Section 3.2).
 
-- WhatsApp: format `08xx`, `+62xx`, atau `62xx` dinormalisasi ke `62xx`.
-- Telegram: gunakan **Telegram ID** sesuai identitas yang diterima Xoftware, bukan email.
-- Nama: wajib untuk proses register jika user belum ada.
-- Email: opsional dan hanya disimpan di browser untuk metadata order lokal.
+3.4 Cek Status Transaksi
+Memeriksa status pembayaran atau status pesanan yang telah diproses.
 
-Tidak ada endpoint login email/WhatsApp/Telegram yang didokumentasikan di Order API selain mekanisme `sender`, `/balance`, dan `/register`. Karena itu project tidak mengarang integrasi login lain.
+URL Path: order/status
+Method: GET / POST
+Request (Query/Body)
+Field	Tipe	Wajib	Deskripsi
+transaction_id	string	
+Wajib
+ID unik transaksi (Reff ID QRIS atau ID Recap Balance).
+Response Body (Data - Type: QRIS/Payment)
+Field	Tipe	Deskripsi
+transaction_id	string	Kode referensi pembayaran.
+status	string	Status saat ini (pending, success, fail).
+amount	number	Nominal dasar transaksi.
+total	number	Total yang dibayarkan.
+product	object	Detail produk yang dibeli.
+accounts	array	Data akun yang dikirimkan (jika status success).
+Response Body (Data - Type: Balance/Recap)
+Field	Tipe	Deskripsi
+transaction_id	number	ID unik recap produk.
+status	string	Status transaksi (selalu "success").
+title	string	Nama produk yang dibeli.
+price	number	Harga per unit produk.
+quantity	number	Jumlah item yang dibeli.
+total_price	number	Total harga transaksi.
+accounts	array	Daftar data akun yang dibeli.
+4. Webhook (Callback)
+Sistem kami akan mengirimkan data secara sinkron ke URL Webhook yang Anda daftarkan setiap kali terjadi perubahan status transaksi.
 
-## Test
+Payload Data
+Field	Tipe	Deskripsi
+event	string	Jenis kejadian (misal: buy_account, buy_balance).
+transaction_id	string	ID unik transaksi sistem.
+reff_id	string	Referensi transaksi eksternal.
+sender	string	Identitas pengguna terkait.
+product_code	string	Kode produk yang dibeli.
+quantity	number	Jumlah item pembelian.
+total_price	number	Total nilai transaksi.
+platform	string	Sumber transaksi (selalu "API" untuk endpoint ini).
+accounts	array	Data item/akun yang dikirimkan (jika ada).
+Payload Contoh (Pembelian Sukses):
+{
+  "event": "buy_account",
+  "transaction_id": "API-ABCDE12345",
+  "sender": "6282354545xxx",
+  "product_code": "NETFLIX_1M",
+  "quantity": 1,
+  "total_price": 35000,
+  "platform": "API",
+  "accounts": [
+    { "email": "user@example.com", "pass": "secret123" }
+  ]
+}
+json
+5. Ketentuan Penggunaan
+Detail mengenai aturan penggunaan, limitasi API, dan kebijakan layanan dapat diakses melalui halaman berikut: Ketentuan Layanan
 
-```bash
-node --check api/xo.js
-node --check assets/xshop.js
-node tests/gateway.test.js
-```
+Dokumentasi API - Manajemen Produk
+Versi: 1.0.0
+Status: Produksi
+Penyusun: Xoftware Developer Team
 
-Mock test mencakup:
+API Manajemen Produk digunakan oleh pemilik bot (store owner) untuk mengelola katalog produk digital, variasi, dan persediaan stok akun secara otomatis melalui integrasi Host-to-Host (H2H).
 
-- response API-level `status:false` walaupun HTTP 200,
-- user existing,
-- auto-register user baru,
-- API Registration disabled,
-- checkout berhenti sebelum order jika user belum bisa diregister,
-- sender checkout harus sender pembeli (tidak fallback sender toko),
-- order status via POST,
-- admin password,
-- Reseller API admin-only,
-- batching stok 205 akun menjadi 100 + 100 + 5.
+1. Informasi Dasar
+Base Path
+Semua endpoint manajemen produk menggunakan prefix: /v1/products
+
+Autentikasi & Header
+API ini menggunakan autentikasi header x-api-key yang diperoleh dari menu Pengaturan -> Manajemen API di dashboard bot Anda.
+
+Header	Wajib	Tipe	Keterangan
+x-api-key	
+Wajib
+string	Kunci API resmi bot Anda
+Content-Type	Ya (untuk POST/PUT)	string	application/json
+[!NOTE] Keamanan IP Whitelist: Jika Anda mengaktifkan daftar IP Whitelist pada pengaturan bot, pastikan IP server pemanggil telah didaftarkan.
+
+2. Batasan Teknis & Regulasi Input
+Untuk menjaga stabilitas performa sistem, aturan berikut berlaku dan mohon menjadi perhatian:
+
+Limitasi Stok per Request: Endpoint penambahan stok akun (POST /v1/products/stocks) dibatasi maksimal 100 akun per request. Jika memiliki stok lebih dari 100, lakukan pengiriman bertahap (batching).
+Limitasi Variasi Produk: Satu produk induk dibatasi maksimal memiliki 30 item variasi.
+Limitasi Pagination Produk: Pengambilan daftar produk (GET /v1/products) dibatasi maksimal 20 produk per halaman (default: 20).
+Standar Kode (SKU): Kode produk maupun variasi (code) wajib berupa kombinasi huruf, angka, atau dash (-) dengan panjang 3 hingga 50 karakter.
+Format Stok Akun: Menggunakan format JSON array string ["nilai1|nilai2"] yang dipisahkan oleh tanda pipe (|) sesuai urutan field pada template form produk.
+3. Template Form Stok (Forms Reference)
+Sebelum membuat produk atau menambahkan stok akun, Anda dapat mengecek format isian form stok yang tersedia di sistem.
+
+3.1 Mengambil Daftar Template Form
+Path: /v1/products/forms
+Method: GET
+Contoh Response
+{
+  "code": 200,
+  "message": "OK",
+  "data": [
+    {
+      "id": 1,
+      "name": "default",
+      "fields": ["Akun"],
+      "required_fields": ["Akun"]
+    },
+    {
+      "id": 2,
+      "name": "Email | Password",
+      "fields": ["Email", "Password"],
+      "required_fields": ["Email", "Password"]
+    },
+    {
+      "id": 3,
+      "name": "Email | Password | 2FA Key",
+      "fields": ["Email", "Password", "2FA Key"],
+      "required_fields": ["Email", "Password"]
+    }
+  ]
+}
+json
+4. Manajemen Produk Utama
+4.1 Mengambil Daftar Produk
+Mengambil daftar produk digital milik bot dengan pagination dan filter pencarian.
+
+Path: /v1/products/
+Method: GET
+Query Parameters:
+page (opsional, default: 1): Nomor halaman.
+limit (opsional, default: 20, maks: 20): Jumlah data per halaman (maksimal 20 data).
+search (opsional): Kata kunci judul atau kode produk.
+is_variation (opsional): Filter true untuk produk variasi atau false untuk produk tunggal.
+Contoh Response
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "products": [
+      {
+        "id": 105,
+        "code": "NETFLIX-1B",
+        "title": "Netflix Premium 1 Bulan",
+        "price": 35000,
+        "profit": 5000,
+        "desc": "Akun private resmi 4K UHD",
+        "snk": "Garansi 30 hari replace",
+        "form": 2,
+        "is_variation": false,
+        "is_show": true,
+        "bulk_count": 0,
+        "wholesale_tiers": null,
+        "sold": 42,
+        "stock_count": 15,
+        "createdAt": "2026-09-18T10:00:00.000Z",
+        "updatedAt": "2026-09-20T08:30:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+json
+4.2 Mengambil Detail Produk
+Path: /v1/products/:id
+Method: GET
+Contoh Response
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "id": 105,
+    "code": "NETFLIX-1B",
+    "title": "Netflix Premium 1 Bulan",
+    "price": 35000,
+    "profit": 5000,
+    "desc": "Akun private resmi 4K UHD",
+    "snk": "Garansi 30 hari replace",
+    "form": 2,
+    "is_variation": false,
+    "is_show": true,
+    "bulk_count": 0,
+    "wholesale_tiers": null,
+    "required_seller_note": false,
+    "sold": 42,
+    "stock_count": 15,
+    "createdAt": "2026-09-18T10:00:00.000Z",
+    "updatedAt": "2026-09-20T08:30:00.000Z"
+  }
+}
+json
+4.3 Membuat Produk Baru
+Path: /v1/products/
+Method: POST
+Payload (Produk Tunggal)
+{
+  "code": "SPOTIFY-IND",
+  "title": "Spotify Individual 1 Bulan",
+  "price": 18000,
+  "profit": 3000,
+  "desc": "Akun fresh anti on-hold",
+  "snk": "Garansi full 30 hari",
+  "form": 2,
+  "is_variation": false,
+  "stocks": [
+    "user1@gmail.com|pass123",
+    "user2@gmail.com|pass456"
+  ]
+}
+json
+Payload (Produk Bertipe Variasi)
+{
+  "title": "Canva Pro Edu & Lifetime",
+  "desc": "Pilih durasi aktivasi Canva",
+  "is_variation": true
+}
+json
+Deskripsi Field
+Field	Wajib	Tipe	Deskripsi
+title	
+Wajib
+string	Judul produk (maks 100 karakter)
+code	Ya (jika non-variasi)	string	Kode SKU alfanumerik & dash (3 - 50 karakter)
+price	Ya (jika non-variasi)	number	Harga jual produk dalam Rupiah
+profit	
+Opsional
+number	Nilai profit untuk laporan bot
+desc	
+Opsional
+string	Deskripsi produk (maks 5.000 karakter)
+snk	
+Opsional
+string	Syarat & ketentuan produk (maks 5.000 karakter)
+form	
+Opsional
+number	ID template form stok (default: form default sistem)
+is_variation	
+Opsional
+boolean	true jika produk memiliki banyak pilihan variasi
+wholesale_tiers	
+Opsional
+array	Tier harga grosir: [{"min_qty": 5, "price": 15000, "profit": 2000}]
+stocks	
+Opsional
+array<string>	Injeksi stok awal (maksimal 100 akun)
+Contoh Response
+{
+  "code": 201,
+  "message": "Produk berhasil dibuat",
+  "data": {
+    "product_id": 108,
+    "code": "SPOTIFY-IND",
+    "title": "Spotify Individual 1 Bulan",
+    "is_variation": false
+  }
+}
+json
+4.4 Memperbarui Data Produk
+Path: /v1/products/:id
+Method: PUT
+Payload
+{
+  "title": "Spotify Individual 1 Bulan (Update)",
+  "price": 19000,
+  "profit": 3500,
+  "desc": "Stok fresh akun legal",
+  "is_show": true
+}
+json
+Contoh Response
+{
+  "code": 200,
+  "message": "Produk berhasil diperbarui",
+  "data": {
+    "product_id": 108
+  }
+}
+json
+4.5 Menghapus Produk
+Menghapus produk induk beserta seluruh variasi dan sisa persediaan stok akunnya.
+
+Path: /v1/products/:id
+Method: DELETE
+Contoh Response
+{
+  "code": 200,
+  "message": "Produk berhasil dihapus",
+  "data": null
+}
+json
+5. Manajemen Variasi Produk
+5.1 Menambahkan Variasi
+Menambahkan variasi baru ke dalam produk induk. Maksimal 30 variasi per produk induk.
+
+Path: /v1/products/:id/variations (di mana :id adalah ID produk induk)
+Method: POST
+Payload
+{
+  "code": "CANVA-1TH",
+  "title": "Canva Pro 1 Tahun",
+  "price": 25000,
+  "profit": 5000,
+  "desc": "Invited via team link resmi",
+  "form": 1,
+  "stocks": [
+    "https://canva.com/brand/join?token=abc123xyz"
+  ]
+}
+json
+Contoh Response
+{
+  "code": 201,
+  "message": "Variasi berhasil ditambahkan",
+  "data": {
+    "variation_id": 45,
+    "code": "CANVA-1TH",
+    "title": "Canva Pro 1 Tahun"
+  }
+}
+json
+5.2 Mengambil Detail Variasi
+Path: /v1/products/variations/:id (di mana :id adalah ID variasi)
+Method: GET
+Contoh Response
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "id": 45,
+    "stock_id": 108,
+    "code": "CANVA-1TH",
+    "title": "Canva Pro 1 Tahun",
+    "price": 25000,
+    "profit": 5000,
+    "desc": "Invited via team link resmi",
+    "snk": "",
+    "form": 1,
+    "stock_count": 8,
+    "createdAt": "2026-09-20T09:00:00.000Z"
+  }
+}
+json
+5.3 Memperbarui Variasi
+Path: /v1/products/variations/:id
+Method: PUT
+Payload
+{
+  "title": "Canva Pro 1 Tahun (Full Garansi)",
+  "price": 27000,
+  "profit": 6000
+}
+json
+Contoh Response
+{
+  "code": 200,
+  "message": "Variasi berhasil diperbarui",
+  "data": {
+    "variation_id": 45
+  }
+}
+json
+5.4 Menghapus Variasi
+Path: /v1/products/variations/:id
+Method: DELETE
+Contoh Response
+{
+  "code": 200,
+  "message": "Variasi berhasil dihapus",
+  "data": null
+}
+json
+6. Manajemen Stok Akun (Stock Accounts)
+6.1 Injeksi Stok Akun
+Menambahkan data persediaan akun siap jual ke produk atau variasi.
+
+Path: /v1/products/stocks
+Method: POST
+[!IMPORTANT] Batasan Kuota: Maksimal 100 akun per request pengiriman.
+
+Payload (Produk Tunggal)
+{
+  "product_id": 105,
+  "accounts": [
+    "user1@gmail.com|pass123",
+    "user2@gmail.com|pass456"
+  ]
+}
+json
+Payload (Produk Bertipe Variasi)
+{
+  "product_id": 108,
+  "variation_id": 45,
+  "accounts": [
+    "https://canva.com/brand/join?token=link1",
+    "https://canva.com/brand/join?token=link2"
+  ]
+}
+json
+Contoh Response
+{
+  "code": 201,
+  "message": "Berhasil menambahkan 2 akun stok",
+  "data": {
+    "total_added": 2,
+    "product_id": 105,
+    "variation_id": null
+  }
+}
+json
+6.2 Mengambil Sisa Stok Akun Aktif
+Melihat daftar data akun yang belum terjual pada suatu produk.
+
+Path: /v1/products/:id/stocks (di mana :id adalah ID produk)
+Method: GET
+Query Parameters:
+variation_id (opsional): Filter akun untuk ID variasi tertentu.
+page (opsional, default: 1): Nomor halaman.
+limit (opsional, default: 50, maks: 100): Jumlah data per halaman.
+Contoh Response
+{
+  "code": 200,
+  "message": "OK",
+  "data": {
+    "stocks": [
+      {
+        "id": 8901,
+        "stock_id": 105,
+        "variation_id": null,
+        "value": {
+          "Email": "user1@gmail.com",
+          "Password": "pass123"
+        },
+        "createdAt": "2026-09-20T09:15:00.000Z"
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 50,
+      "total": 1,
+      "total_pages": 1
+    }
+  }
+}
+json
+6.3 Menghapus 1 Stok Akun
+Menghapus data akun stok spesifik yang belum terjual berdasarkan ID akunnya.
+
+Path: /v1/products/stocks/:id (di mana :id adalah ID akun stok)
+Method: DELETE
+Contoh Response
+{
+  "code": 200,
+  "message": "Data akun stok berhasil dihapus",
+  "data": null
+}
+json
+7. Penanganan Kesalahan (Error Handling)
+Format response error mengikuti standar Xoftware:
+
+{
+  "code": 400,
+  "message": "Maksimal penambahan stok adalah 100 akun per request",
+  "data": null
+}
+json
+Kode HTTP	Penjelasan
+200	Permintaan berhasil diproses.
+201	Sumber daya baru (produk/variasi/stok) berhasil dibuat.
+400	Validasi input gagal, kuota akun > 100, variasi > 30, atau kode SKU duplikat.
+401	API Key tidak ditemukan atau tidak valid.
+403	Akses IP diblokir (tidak masuk whitelist IP bot).
+404	Produk, variasi, form, atau akun stok tidak ditemukan.
+500	Terjadi kesalahan internal pada server.
