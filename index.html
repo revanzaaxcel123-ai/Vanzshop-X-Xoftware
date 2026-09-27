@@ -1,20 +1,830 @@
 <!doctype html>
-<html lang="id" data-theme="dark">
+<html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#07080c">
-  <title>VanzShop.com — Toko Produk Digital</title>
-  <meta name="description" content="VanzShop.com — produk digital, stok live, checkout otomatis.">
-  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VanzShop.com — Premium Digital & Aksesoris</title>
+  <meta name="description" content="VanzShop.com: produk digital, desain, musik & video, dan aksesoris. Fast respon, harga bersahabat.">
+  <link rel="icon" href="/assets/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/assets/app.css?v=23">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg:#05070b;
+      --panel:#0b0f16;
+      --line:#171c27;
+      --text:#f2f4ff;
+      --muted:#9aa4b2;
+      --gold:#f6ce4a;
+      --gold-2:#c79b28;
+      --bubble-1:rgba(255,222,130,.16);
+      --bubble-2:rgba(255,204,102,.10);
+      --bubble-3:rgba(140,120,255,.12);
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      background:radial-gradient(circle at top left,#101325 0, #05070b 55%, #020308 100%);
+      color:var(--text);
+      font-family:Inter,system-ui,Arial,sans-serif;
+      min-height:100vh;
+      position:relative;
+      overflow-x:hidden;
+    }
+
+    /* ===== Floating bubble background ===== */
+    .bubble-bg{
+      position:fixed;
+      inset:0;
+      overflow:hidden;
+      z-index:-1;
+    }
+    .bubble{
+      position:absolute;
+      border-radius:999px;
+      filter:blur(4px);
+      opacity:.45;
+      mix-blend-mode:screen;
+      background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.8),transparent 60%);
+      transform:translate3d(0,0,0);
+      animation:float-bubble 40s linear infinite;
+    }
+    .bubble.b1{width:320px;height:320px;left:-80px;top:10%;background-color:var(--bubble-3);animation-duration:55s;}
+    .bubble.b2{width:260px;height:260px;right:-60px;top:12%;background-color:var(--bubble-1);animation-duration:48s;animation-direction:reverse;}
+    .bubble.b3{width:260px;height:260px;left:10%;bottom:-80px;background-color:var(--bubble-2);animation-duration:52s;}
+    .bubble.b4{width:320px;height:320px;right:5%;bottom:-120px;background-color:var(--bubble-1);animation-duration:60s;animation-direction:alternate;}
+    .bubble.b5{width:180px;height:180px;left:45%;top:55%;background-color:var(--bubble-3);animation-duration:70s;}
+    @keyframes float-bubble{
+      0%{transform:translate3d(0,0,0) scale(1);}
+      25%{transform:translate3d(40px,-20px,0) scale(1.05);}
+      50%{transform:translate3d(-20px,-40px,0) scale(1.08);}
+      75%{transform:translate3d(-40px,10px,0) scale(1.03);}
+      100%{transform:translate3d(0,0,0) scale(1);}
+    }
+
+    .container{max-width:1280px;margin:0 auto;padding:0 20px}
+
+    .header{
+      display:flex;justify-content:space-between;align-items:center;
+      padding:16px 0;
+      border-bottom:1px solid var(--line);
+      position:sticky;top:0;
+      background:rgba(5,7,11,.9);
+      backdrop-filter:blur(12px);
+      z-index:10;
+    }
+    .brand{display:flex;gap:10px;align-items:center;text-decoration:none;color:inherit}
+    .brand-text span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+    .nav{display:flex;gap:14px;align-items:center}
+    .nav a{color:var(--text);text-decoration:none;opacity:.9}
+    .nav a:hover{opacity:1}
+    .btn{
+      border:1px solid var(--line);
+      padding:10px 14px;
+      border-radius:10px;
+      text-decoration:none;
+      color:var(--text);
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+    }
+    .btn.primary{
+      background:linear-gradient(135deg,var(--gold),var(--gold-2));
+      border-color:transparent;
+      color:#111;
+      font-weight:700;
+      box-shadow:0 8px 20px rgba(212,175,55,.25);
+    }
+    .btn.primary:hover{filter:brightness(1.05)}
+    .btn.ghost{background:rgba(4,6,10,.4)}
+    .btn.sm{padding:8px 12px;font-size:14px}
+
+    .hero{
+      display:grid;
+      grid-template-columns:1.05fr;
+      gap:20px;
+      align-items:center;
+      padding:28px 0 8px;
+    }
+    .hero h1{font-size:40px;line-height:1.1;margin:0 0 8px}
+    .gold{color:var(--gold)}
+    .mark{
+      background:linear-gradient(135deg,var(--gold),var(--gold-2));
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+    }
+    .hero p{color:var(--muted);max-width:480px}
+    .cta{display:flex;gap:10px;margin-top:14px}
+    .badges{
+      display:flex;gap:14px;margin:12px 0 0;padding:0;list-style:none;
+      color:var(--muted);flex-wrap:wrap;
+    }
+
+    /* ===== Payment ticker (teleprompter) ===== */
+    .payment-section{
+      margin-top:18px;
+      background:linear-gradient(135deg,rgba(248,212,112,.09),rgba(8,10,18,.9));
+      border-radius:18px;
+      border:1px solid rgba(246,206,74,.25);
+      padding:14px 18px;
+      position:relative;
+      overflow:hidden;
+      max-width:680px;
+    }
+    .payment-header{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+      font-size:14px;
+      color:var(--muted);
+    }
+    .payment-header span.label{
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(7,8,12,.9);
+      border:1px solid rgba(246,206,74,.4);
+      color:var(--gold);
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .ticker-mask{
+      position:relative;
+      overflow:hidden;
+    }
+    .ticker{
+      display:flex;
+      gap:32px;
+      white-space:nowrap;
+      animation:ticker-move 26s linear infinite;
+      will-change:transform;
+    }
+    .ticker-item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(7,8,12,.9);
+      border:1px solid rgba(255,255,255,.04);
+      box-shadow:0 0 0 1px rgba(0,0,0,.4);
+      font-size:13px;
+    }
+    .ticker-item span.badge{
+      width:22px;height:22px;border-radius:999px;
+      display:flex;align-items:center;justify-content:center;
+      background:rgba(246,206,74,.14);
+      color:var(--gold);
+      font-size:13px;
+    }
+    @keyframes ticker-move{
+      0%{transform:translateX(0)}
+      100%{transform:translateX(-50%)}
+    }
+
+    /* ===== HERO BANNER SLIDER (triple card style) ===== */
+    .hero-banner-wrap{
+      margin-top:10px;
+      margin-bottom:4px;
+    }
+    .hero-banner{
+      position:relative;
+      width:100%;
+      overflow:visible;
+      padding:6px 0 10px;
+    }
+    .hero-banner .track{
+      display:flex;
+      gap:18px;
+      align-items:center;
+      will-change:transform;
+      transition:transform .35s cubic-bezier(.25,.8,.4,1);
+      padding:0 8%;
+    }
+    .hero-slide{
+      flex:0 0 64%;
+      max-width:64%;
+      border-radius:26px;
+      overflow:hidden;
+      background:#05070b;
+      box-shadow:0 28px 60px rgba(0,0,0,.55);
+      transition:transform .35s cubic-bezier(.25,.8,.4,1), opacity .35s;
+    }
+    .hero-slide img{
+      width:100%;
+      height:auto;
+      display:block;
+    }
+    .hero-slide.is-center{
+      transform:scale(1);
+      opacity:1;
+    }
+    .hero-slide:not(.is-center){
+      transform:scale(.92);
+      opacity:.75;
+    }
+    .hero-banner .arrow{
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      width:34px;height:72px;
+      border-radius:22px;
+      border:none;
+      background:rgba(0,0,0,.7);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:pointer;
+      z-index:5;
+      backdrop-filter:blur(8px);
+    }
+    .hero-banner .arrow.prev{left:6px}
+    .hero-banner .arrow.next{right:6px}
+    .hero-banner .dots{
+      position:absolute;
+      left:50%;
+      bottom:12px;
+      transform:translateX(-50%);
+      display:flex;
+      gap:8px;
+      z-index:4;
+    }
+    .hero-banner .dots button{
+      width:7px;height:7px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.7);
+      background:rgba(0,0,0,.3);
+      padding:0;
+    }
+    .hero-banner .dots button.active{
+      background:#fff;
+      border-color:#fff;
+    }
+    .hero-banner.dragging .track{
+      transition:none!important;
+      cursor:grabbing;
+    }
+
+    /* kategori + produk */
+    .cats{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+    .chip{
+      background:rgba(7,9,15,.9);
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:8px 12px;
+      color:var(--text);
+      font-size:13px;
+    }
+    .chip.active{border-color:var(--gold);color:var(--gold)}
+
+    .section-title{font-size:24px;margin:26px 0 12px}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+    .card{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:14px;
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      position:relative;
+      transition:transform .35s cubic-bezier(.2,.8,.2,1), box-shadow .35s;
+      will-change:transform;
+    }
+    .card:hover{
+      transform:translateY(-8px);
+      box-shadow:0 20px 40px rgba(0,0,0,.35), 0 0 0 1px rgba(212,175,55,.15);
+    }
+    .card img{width:100%;aspect-ratio:4/3;object-fit:cover;background:#111}
+    .card-body{padding:14px;display:flex;gap:8px;flex-direction:column}
+    .pill{
+      display:inline-block;padding:4px 8px;border-radius:999px;
+      border:1px solid var(--line);
+      font-size:12px;color:var(--muted);
+    }
+    .row{display:flex;justify-content:space-between;align-items:center;margin-top:4px}
+    .price{color:var(--gold);font-weight:800}
+    .desc{color:var(--muted)}
+    .card h3 a{
+      background:linear-gradient(90deg,#fff,var(--gold),#fff);
+      background-size:200% 100%;
+      -webkit-background-clip:text;
+      background-clip:text;
+      color:transparent;
+      opacity:.9;
+      text-decoration:none;
+      transition:opacity .3s, background-position .7s;
+    }
+    .card:hover h3 a{opacity:1;background-position:100% 0}
+
+    .features{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:28px auto}
+    .feature{
+      display:flex;gap:12px;align-items:flex-start;
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+    }
+    .feature .ico{
+      width:40px;height:40px;display:grid;place-items:center;
+      background:#151b26;border:1px solid var(--line);
+      border-radius:10px;font-size:20px;
+    }
+
+    .footer{border-top:1px solid var(--line);margin-top:28px}
+    .foot-grid{
+      display:grid;
+      grid-template-columns:2fr 1fr 1fr;
+      gap:18px;
+      padding:18px 0;
+    }
+    .foot-brand{gap:10px;margin-bottom:10px}
+    .muted{color:var(--muted)}
+    .links{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+    .links a{color:var(--text);text-decoration:none;opacity:.9}
+    .links a:hover{opacity:1}
+
+    .wa{
+      position:fixed;right:16px;bottom:16px;
+      background:#25d366;border-radius:999px;padding:10px;
+      box-shadow:0 16px 40px rgba(0,0,0,.35);
+    }
+    .wa img{width:28px;height:28px;display:block}
+
+    /* responsive */
+    @media (max-width:980px){
+      .hero{grid-template-columns:1fr}
+      .hero-banner .track{padding:0 8px}
+      .hero-slide{flex:0 0 82%;max-width:82%}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .foot-grid{grid-template-columns:1fr 1fr}
+    }
+    @media (max-width:560px){
+      .nav{display:none}
+      .hero h1{font-size:30px}
+      .payment-section{padding:12px 12px;max-width:100%}
+      .hero-banner{padding:0 0 12px}
+      .hero-banner .track{padding:0;gap:12px}
+      .hero-slide{flex:0 0 100%;max-width:100%;border-radius:18px}
+      .hero-slide:not(.is-center){transform:none;opacity:1}
+      .hero-banner .arrow{display:none}
+      .grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+      .card{border-radius:16px}
+      .card img{aspect-ratio:1/1}
+      .card-body{padding:10px;gap:6px}
+      .card h3{font-size:14px;line-height:1.2;margin:2px 0 0}
+      .desc{font-size:12px;line-height:1.45;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+      .price{font-size:13px}
+      .row{gap:8px;align-items:flex-end}
+      .btn.sm{padding:7px 10px;font-size:12px;border-radius:10px}
+      .section-head h2{font-size:28px}
+      .chips{gap:8px;overflow:auto;padding-bottom:4px}
+      .chip{white-space:nowrap}
+    }
+
+    /* mobile: kurangin anim berat */
+    @media (hover:none),(pointer:coarse){
+      .card,.card:hover{transform:none !important;box-shadow:none !important;}
+      .card img{transform:none !important;filter:none !important;}
+    }
+    @media (prefers-reduced-motion:reduce){
+      *{animation:none !important;transition:none !important;}
+    }
+  </style>
 </head>
 <body>
-  <div id="app"></div>
-  <script src="/assets/vendor/qrcode.min.js"></script>
-  <script src="/assets/xshop.js?v=23"></script>
+
+  <!-- bubble background -->
+  <div class="bubble-bg" aria-hidden="true">
+    <div class="bubble b1"></div>
+    <div class="bubble b2"></div>
+    <div class="bubble b3"></div>
+    <div class="bubble b4"></div>
+    <div class="bubble b5"></div>
+  </div>
+
+  <header class="header container">
+    <a class="brand" href="/">
+      <img src="/assets/logo.svg" alt="VanzShop logo" width="36" height="36" loading="lazy" decoding="async">
+      <div class="brand-text">
+        <strong>VanzShop.com</strong>
+        <span>premium store</span>
+      </div>
+    </a>
+    <nav class="nav">
+      <a href="#kategori">Kategori</a>
+      <a href="#produk">Produk</a>
+      <a href="#keunggulan">Keunggulan</a>
+      <a class="btn sm" target="_blank" rel="noopener" href="https://wa.me/62895415204928?text=Halo%20VanzShop.com%2C%20saya%20mau%20tanya">WhatsApp</a>
+    </nav>
+  </header>
+
+  <section class="hero container">
+    <div class="hero-text">
+      <h1>Belanja <span class="gold">lebih premium</span> di <span class="mark">VanzShop.com</span></h1>
+      <p>Produk digital & aksesoris pilihan. Support 24/7, transaksi aman, pengiriman kilat.</p>
+      <div class="cta">
+        <a class="btn primary" href="#produk">Lihat Produk</a>
+        <a class="btn ghost" target="_blank" href="mailto:revanzabussines@gmail.com">Email kami</a>
+      </div>
+      <ul class="badges">
+        <li>⭐ 4.9/5 pelanggan puas</li>
+        <li>⚡ Proses cepat</li>
+        <li>🛡️ Garansi aman</li>
+      </ul>
+
+      <!-- Payment teleprompter -->
+      <div class="payment-section">
+        <div class="payment-header">
+          <span class="label">Metode Pembayaran</span>
+          <span>Didukung banyak channel resmi: QRIS, bank & e-wallet.</span>
+        </div>
+        <div class="ticker-mask">
+          <div class="ticker">
+            <!-- blok 1 -->
+            <div class="ticker-item">
+              <span class="badge">💳</span><span>QRIS All Payment</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🏦</span><span>Duitku Virtual Account</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🏧</span><span>BCA / BRI / BNI / Mandiri</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">📱</span><span>DANA · OVO · GoPay · LinkAja</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🌐</span><span>Alfamart / Indomaret (via kode bayar)</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🪙</span><span>e-Wallet Lain via QRIS</span>
+            </div>
+            <!-- duplikat utk loop halus -->
+            <div class="ticker-item">
+              <span class="badge">💳</span><span>QRIS All Payment</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🏦</span><span>Duitku Virtual Account</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🏧</span><span>BCA / BRI / BNI / Mandiri</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">📱</span><span>DANA · OVO · GoPay · LinkAja</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🌐</span><span>Alfamart / Indomaret (via kode bayar)</span>
+            </div>
+            <div class="ticker-item">
+              <span class="badge">🪙</span><span>e-Wallet Lain via QRIS</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- end payment section -->
+    </div>
+  </section>
+
+  <!-- HERO BANNER SLIDER (full width, triple card style) -->
+  <section class="container hero-banner-wrap">
+    <div class="hero-banner">
+      <button class="arrow prev" aria-label="Slide sebelumnya">&#10094;</button>
+      <div class="track">
+        <div class="hero-slide">
+          <img src="/assets/banner/banner1.jpg" alt="Banner 1" loading="lazy" decoding="async">
+        </div>
+        <div class="hero-slide">
+          <img src="/assets/banner/banner2.jpg" alt="Banner 2" loading="lazy" decoding="async">
+        </div>
+        <div class="hero-slide">
+          <img src="/assets/banner/banner3.jpg" alt="Banner 3" loading="lazy" decoding="async">
+        </div>
+        <div class="hero-slide">
+          <img src="/assets/banner/banner4.jpg" alt="Banner 4" loading="lazy" decoding="async">
+        </div>
+        <div class="hero-slide">
+          <img src="/assets/banner/banner5.jpg" alt="Banner 5" loading="lazy" decoding="async">
+        </div>
+      </div>
+      <button class="arrow next" aria-label="Slide berikutnya">&#10095;</button>
+      <div class="dots" aria-label="pager"></div>
+    </div>
+  </section>
+
+  <section id="kategori" class="container cats">
+    <button class="chip active">Semua</button>
+    <button class="chip">Desain</button>
+    <button class="chip">Musik & Video</button>
+    <button class="chip">Productivity</button>
+    <button class="chip">Aksesoris</button>
+  </section>
+
+  <section id="produk" class="container">
+    <h2 class="section-title">Produk Unggulan</h2>
+    <div class="grid">
+      <!-- CANVA -->
+      <article class="card">
+        <a href="/beli/index.html?slug=canva">
+          <img src="/assets/canva.jpg" alt="Canva Pro" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">DESAIN</div>
+          <h3><a href="/beli/index.html?slug=canva">Canva Pro</a></h3>
+          <p class="desc">Akses template & fitur premium untuk desain apa pun.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 25.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=canva">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- CAPCUT -->
+      <article class="card">
+        <a href="/beli/index.html?slug=capcut">
+          <img src="/assets/capcut.jpg" alt="CapCut Pro" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">MUSIK & VIDEO</div>
+          <h3><a href="/beli/index.html?slug=capcut">CapCut Pro</a></h3>
+          <p class="desc">Export tanpa watermark & resource premium.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 20.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=capcut">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- CHATGPT -->
+      <article class="card">
+        <a href="/beli/index.html?slug=chatgpt">
+          <img src="/assets/chatgpt.jpg" alt="ChatGPT Access" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">PRODUCTIVITY</div>
+          <h3><a href="/beli/index.html?slug=chatgpt">ChatGPT Access</a></h3>
+          <p class="desc">Akses tools AI untuk kerja & belajar makin cepat.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 30.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=chatgpt">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ALIGHT -->
+      <article class="card">
+        <a href="/beli/index.html?slug=alightmotion">
+          <img src="/assets/alightmotion.jpg" alt="Alight Motion" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">DESAIN</div>
+          <h3><a href="/beli/index.html?slug=alightmotion">Alight Motion</a></h3>
+          <p class="desc">Edit video/animasi di HP dengan fitur premium.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 20.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=alightmotion">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- YOUTUBE -->
+      <article class="card">
+        <a href="/beli/index.html?slug=youtube">
+          <img src="/assets/youtube.jpg" alt="YouTube Premium" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">MUSIK & VIDEO</div>
+          <h3><a href="/beli/index.html?slug=youtube">YouTube Premium</a></h3>
+          <p class="desc">Tonton tanpa iklan, termasuk YouTube Music.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 30.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=youtube">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- SPOTIFY -->
+      <article class="card">
+        <a href="/beli/index.html?slug=spotify">
+          <img src="/assets/spotify.jpg" alt="Spotify Premium" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">MUSIK & VIDEO</div>
+          <h3><a href="/beli/index.html?slug=spotify">Spotify Premium</a></h3>
+          <p class="desc">Dengerin lagu bebas iklan & download offline.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 25.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=spotify">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- ZOOM -->
+      <article class="card">
+        <a href="/beli/index.html?slug=zoom">
+          <img src="/assets/zoom.jpg" alt="Zoom Pro" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">PRODUCTIVITY</div>
+          <h3><a href="/beli/index.html?slug=zoom">Zoom Pro</a></h3>
+          <p class="desc">Meeting panjang tanpa limit, fitur rekam & lainnya.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 40.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=zoom">Beli</a>
+          </div>
+        </div>
+      </article>
+
+      <!-- NETFLIX -->
+      <article class="card">
+        <a href="/beli/index.html?slug=netflix">
+          <img src="/assets/netflix.jpg" alt="Netflix" loading="lazy" decoding="async">
+        </a>
+        <div class="card-body">
+          <div class="pill">MUSIK & VIDEO</div>
+          <h3><a href="/beli/index.html?slug=netflix">Netflix</a></h3>
+          <p class="desc">Nonton film & series favorit, kualitas HD hingga 4K.</p>
+          <div class="row">
+            <span class="price">Mulai Rp 35.000</span>
+            <a class="btn sm" href="/beli/index.html?slug=netflix">Beli</a>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <section id="keunggulan" class="container features">
+    <div class="feature">
+      <div class="ico">⚡</div>
+      <div><h4>Proses Instan</h4><p class="muted">Pengerjaan cepat setelah pembayaran terkonfirmasi.</p></div>
+    </div>
+    <div class="feature">
+      <div class="ico">🛡️</div>
+      <div><h4>Transaksi Aman</h4><p class="muted">Dukungan admin & garansi sesuai ketentuan.</p></div>
+    </div>
+    <div class="feature">
+      <div class="ico">💬</div>
+      <div><h4>Support 24/7</h4><p class="muted">Hubungi WhatsApp kapan saja untuk bantuan.</p></div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <div class="container foot-grid">
+      <div>
+        <div class="brand foot-brand">
+          <img src="/assets/logo.svg" alt="" width="32" height="32" loading="lazy" decoding="async">
+          <div class="brand-text">
+            <strong>VanzShop.com</strong>
+            <span>premium store</span>
+          </div>
+        </div>
+        <p class="muted">
+          Email: <a href="mailto:revanzabussines@gmail.com">revanzabussines@gmail.com</a><br>
+          WhatsApp: <a target="_blank" href="https://wa.me/62895415204928">0895-4152-04928</a><br>
+          Instagram: <a target="_blank" href="https://instagram.com/revanza_axcell">@revanza_axcell</a>
+        </p>
+      </div>
+      <div>
+        <h4>Informasi</h4>
+        <ul class="links">
+          <li><a href="#produk">Produk</a></li>
+          <li><a href="#keunggulan">Keunggulan</a></li>
+          <li><a target="_blank" href="https://wa.me/62895415204928?text=Halo%20VanzShop.com">Tanya Admin</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Kebijakan</h4>
+        <ul class="links">
+          <li>Pengembalian sesuai syarat</li>
+          <li>Privasi & keamanan</li>
+          <li>Copyright © <span id="y"></span> VanzShop.com</li>
+        </ul>
+      </div>
+    </div>
+  </footer>
+
+  <a class="wa" target="_blank" href="https://wa.me/62895415204928?text=Halo%20VanzShop.com%2C%20saya%20mau%20order">
+    <img src="/assets/wa.svg" alt="WhatsApp" loading="lazy" decoding="async">
+  </a>
+
+  <script>
+    document.getElementById('y').textContent = new Date().getFullYear();
+
+    // === HERO BANNER TRIPLE CAROUSEL ===
+    (function(){
+      const root = document.querySelector('.hero-banner');
+      if (!root) return;
+
+      const track = root.querySelector('.track');
+      const slides = Array.from(root.querySelectorAll('.hero-slide'));
+      const dotsWrap = root.querySelector('.dots');
+      const prevBtn = root.querySelector('.arrow.prev');
+      const nextBtn = root.querySelector('.arrow.next');
+
+      let index = 0;
+      let autoTimer = null;
+
+      function buildDots(){
+        dotsWrap.innerHTML = slides.map((_,i)=>
+          `<button data-i="${i}" class="${i===index?'active':''}" aria-label="Slide ${i+1}"></button>`
+        ).join('');
+        dotsWrap.querySelectorAll('button').forEach(b=>{
+          b.onclick = () => { goTo(+b.dataset.i); restartAuto(); };
+        });
+      }
+
+      function targetOffset(i){
+        const slide = slides[i];
+        const containerWidth = root.clientWidth;
+        const slideWidth = slide.offsetWidth;
+        const left = slide.offsetLeft; // relative to track
+        return left - (containerWidth - slideWidth)/2;
+      }
+
+      function goTo(i, instant){
+        index = (i + slides.length) % slides.length;
+        const offset = targetOffset(index);
+        track.style.transition = instant ? 'none' : 'transform .35s cubic-bezier(.25,.8,.4,1)';
+        track.style.transform = `translateX(${-offset}px)`;
+        slides.forEach((s,idx)=> s.classList.toggle('is-center', idx===index));
+        buildDots();
+      }
+
+      function next(){ goTo(index+1); }
+      function prev(){ goTo(index-1); }
+
+      function startAuto(){
+        clearInterval(autoTimer);
+        autoTimer = setInterval(next, 3000);
+      }
+      function restartAuto(){
+        clearInterval(autoTimer);
+        autoTimer = setInterval(next, 3000);
+      }
+
+      prevBtn.addEventListener('click', ()=>{ prev(); restartAuto(); });
+      nextBtn.addEventListener('click', ()=>{ next(); restartAuto(); });
+
+      // Drag / swipe behaviour
+      let dragging = false;
+      let startX = 0;
+      let startTransform = 0;
+
+      function currentTransform(){
+        const m = track.style.transform.match(/-?\d+(\.\d+)?/);
+        return m ? parseFloat(m[0]) : 0;
+      }
+
+      function pointerDown(x){
+        dragging = true;
+        root.classList.add('dragging');
+        startX = x;
+        startTransform = currentTransform();
+        clearInterval(autoTimer);
+      }
+      function pointerMove(x){
+        if(!dragging) return;
+        const dx = x - startX;
+        track.style.transition = 'none';
+        track.style.transform = `translateX(${startTransform + dx}px)`;
+      }
+      function pointerUp(x){
+        if(!dragging) return;
+        dragging = false;
+        root.classList.remove('dragging');
+        const dx = x - startX;
+        const threshold = slides[0].offsetWidth * 0.18;
+        if(Math.abs(dx) > threshold){
+          if(dx < 0) next(); else prev();
+        }else{
+          goTo(index);
+        }
+        startAuto();
+      }
+
+      root.addEventListener('mousedown', e=>pointerDown(e.clientX));
+      window.addEventListener('mousemove', e=>pointerMove(e.clientX));
+      window.addEventListener('mouseup', e=>pointerUp(e.clientX));
+
+      root.addEventListener('touchstart', e=>pointerDown(e.touches[0].clientX), {passive:true});
+      root.addEventListener('touchmove', e=>pointerMove(e.touches[0].clientX), {passive:true});
+      root.addEventListener('touchend', e=>{
+        const x = (e.changedTouches[0] || e.touches[0] || {clientX:startX}).clientX;
+        pointerUp(x);
+      });
+
+      window.addEventListener('resize', ()=>goTo(index,true));
+
+      // init
+      requestAnimationFrame(()=>{
+        goTo(0,true);
+        startAuto();
+      });
+    })();
+  </script>
 </body>
 </html>
