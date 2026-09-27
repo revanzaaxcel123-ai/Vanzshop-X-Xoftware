@@ -12,7 +12,7 @@ function envSecret(v){
 }
 const ADMIN_PASSWORD = envSecret(process.env.ADMIN_PASSWORD);
 const TIMEOUT_MS = Math.max(5000, Math.min(60000, Number(process.env.XSOFTWARE_TIMEOUT || 25000)));
-const BUILD_ID = 'HARDMAX-v9';
+const BUILD_ID = 'HARDMAX-v10';
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -433,7 +433,8 @@ module.exports=async function handler(req,res){
       }
       case 'owner_balance': {
         if(requireAdmin(req,res)) return;
-        const b=bodyOf(req), sender=str(q(req,'sender')||b.sender,160);
+        const b=bodyOf(req), channel=str(b.channel||q(req,'channel')||'',20).toLowerCase(), raw=q(req,'sender')||b.sender;
+        const sender=channel?normalizeSender(raw,channel):str(raw,160);
         if(!sender) return fail(res,'sender wajib diisi.');
         if(method(req,'POST')) return ok(res,await xoFetch(ORDER.balance,{method:'POST',body:{sender}}));
         if(method(req,'GET')) return ok(res,await xoFetch(`${ORDER.balance}${queryString({sender})}`));
@@ -442,10 +443,35 @@ module.exports=async function handler(req,res){
       case 'checkout_balance': {
         if(requireAdmin(req,res)) return;
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
-        const b=bodyOf(req), sender=str(b.sender,160), code=str(b.code,100), quantity=int(b.quantity,0);
+        const b=bodyOf(req), channel=str(b.channel||'',20).toLowerCase(), sender=channel?normalizeSender(b.sender,channel):str(b.sender,160), code=str(b.code,100), quantity=int(b.quantity,0);
         if(!sender||!validOrderCode(code)||quantity<1) return fail(res,'sender, code, quantity wajib valid.');
         await fetchUser(sender);
         return ok(res,await xoFetch(ORDER.orderBalance,{method:'POST',body:{sender,code,quantity}}));
+      }
+      case 'admin_order_qris': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase(), sender=normalizeSender(b.sender,channel), code=str(b.code,100), quantity=int(b.quantity,0);
+        if(!['whatsapp','telegram'].includes(channel)||!validSender(sender,channel)||!validOrderCode(code)||quantity<1) return fail(res,'sender, code, quantity wajib valid.');
+        await fetchUser(sender);
+        return ok(res,await xoFetch(ORDER.orderQris,{method:'POST',body:{sender,code,quantity}}));
+      }
+      case 'admin_deposit': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), channel=str(b.channel||'whatsapp',20).toLowerCase(), sender=normalizeSender(b.sender,channel), amount=num(b.amount,0);
+        if(!['whatsapp','telegram'].includes(channel)||!validSender(sender,channel)) return fail(res,'sender tidak valid.');
+        if(!Number.isInteger(amount)||amount<LIMITS.deposit_min||amount>LIMITS.deposit_max) return fail(res,'Nominal deposit harus Rp1.000 sampai Rp1.000.000.');
+        await fetchUser(sender);
+        return ok(res,await xoFetch(ORDER.deposit,{method:'POST',body:{sender,amount}}));
+      }
+      case 'admin_order_status': {
+        if(requireAdmin(req,res)) return;
+        if(!method(req,'POST')&&!method(req,'GET')) return fail(res,'Method tidak diizinkan.',405);
+        const b=bodyOf(req), id=str(q(req,'transaction_id')||b.transaction_id,160);
+        if(!id) return fail(res,'transaction_id wajib diisi.');
+        if(method(req,'GET')) return ok(res,await xoFetch(`${ORDER.orderStatus}${queryString({transaction_id:id})}`));
+        return ok(res,await xoFetch(ORDER.orderStatus,{method:'POST',body:{transaction_id:id}}));
       }
       case 'pm_forms': {
         if(requireAdmin(req,res)) return;

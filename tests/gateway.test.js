@@ -33,6 +33,8 @@ global.fetch=async(url,options={})=>{
     const x={id:users.size+10,name:String(body.name),sender:String(body.sender),saldo:0,level:'BASIC'};users.set(x.sender,x);return reply(200,{status:true,data:x});
   }
   if(u.pathname==='/v1/order/qris'&&method==='POST')return reply(200,{status:true,data:{transaction_id:'API-TX1',amount:25000,total_to_pay:25700,qr_string:'QR',link:'https://pay.test',status:'pending'}});
+  if(u.pathname==='/v1/order/balance'&&method==='POST')return reply(200,{status:true,data:{transaction_id:9001,total_price:12000,status:'success',accounts:[{value:'demo'}]}});
+  if(u.pathname==='/v1/deposit'&&method==='POST')return reply(200,{status:true,data:{transaction_id:'DEP-1',amount:body.amount,total_to_pay:body.amount+500,status:'pending'}});
   if(u.pathname==='/v1/order/status'&&method==='POST')return reply(200,{status:true,data:{transaction_id:body.transaction_id,status:'success',total:25700,accounts:[{email:'a@b.c',pass:'x'}]}});
   if(u.pathname==='/v1/products/'&&method==='GET')return reply(200,{code:200,message:'OK',data:{products:[{id:10,code:'ABC',title:'ABC',price:1000,stock_count:2,is_variation:false}],pagination:{page:1,limit:20,total:1,total_pages:1}}});
   if(u.pathname==='/v1/products/stocks'&&method==='POST')return reply(201,{code:201,data:{total_added:body.accounts.length,product_id:body.product_id,variation_id:body.variation_id??null}});
@@ -57,7 +59,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v9');
+  assert.equal(r.body.data.build,'HARDMAX-v10');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
@@ -102,6 +104,19 @@ function invoke({method='GET',query={},body,headers={}}={}){
   r=await invoke({method:'POST',query:{a:'admin_login'},body:{password:'test-admin'}}); assert.equal(r.status,200); assert.ok(r.body.data.token);
   const adminToken=r.body.data.token;
   r=await invoke({query:{a:'admin_ping'},headers:{authorization:`Bearer ${adminToken}`}}); assert.equal(r.status,200);
+
+
+  r=await invoke({method:'POST',query:{a:'admin_order_qris'},headers:{authorization:`Bearer ${adminToken}`},body:{channel:'whatsapp',sender:'08111111111',code:'NFLIX-1',quantity:1}});
+  assert.equal(r.status,200); assert.equal(r.body.data.data.transaction_id,'API-TX1');
+
+  r=await invoke({method:'POST',query:{a:'checkout_balance'},headers:{authorization:`Bearer ${adminToken}`},body:{sender:'628111111111',code:'NFLIX-1',quantity:1}});
+  assert.equal(r.status,200); assert.equal(r.body.data.data.status,'success');
+
+  r=await invoke({method:'POST',query:{a:'admin_deposit'},headers:{authorization:`Bearer ${adminToken}`},body:{channel:'whatsapp',sender:'08111111111',amount:50000}});
+  assert.equal(r.status,200); assert.equal(r.body.data.data.transaction_id,'DEP-1');
+
+  r=await invoke({method:'POST',query:{a:'admin_order_status'},headers:{authorization:`Bearer ${adminToken}`},body:{transaction_id:'API-TX1'}});
+  assert.equal(r.status,200); assert.equal(r.body.data.data.status,'success');
 
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'wrong'}}); assert.equal(r.status,401);
   r=await invoke({query:{a:'catalog_probe'},headers:{'x-admin-password':'test-admin'}}); assert.equal(r.status,200); assert.equal(r.body.data.summary.count,2);

@@ -4,7 +4,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
-const BUILD_ID = 'HARDMAX-v9';
+const BUILD_ID = 'HARDMAX-v10';
 window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -100,7 +100,22 @@ async function requestApi(a,{method='GET',body=null,query={},adminToken='',admin
   return j.data ?? j;
 }
 const api = (a, body=null, query={}) => requestApi(a,{method:body===null?'GET':'POST',body,query});
-const adminApi = (a,{method='GET',body=null,query={}}={}) => requestApi(a,{method,body,query,adminToken:sessionStorage.getItem('vanz_admin_token')||''});
+function readAdminLogs(){ return safeJsonParse(localStorage.getItem('vanz_admin_logs')||'[]',[]); }
+function adminLog(action,status='ok',meta={}){
+  const rows=readAdminLogs();
+  rows.unshift({time:new Date().toISOString(),action:String(action||''),status:String(status||''),method:String(meta.method||'GET'),note:String(meta.note||'').slice(0,180)});
+  localStorage.setItem('vanz_admin_logs',JSON.stringify(rows.slice(0,200)));
+}
+async function adminApi(a,{method='GET',body=null,query={}}={}){
+  try{
+    const out=await requestApi(a,{method,body,query,adminToken:sessionStorage.getItem('vanz_admin_token')||''});
+    adminLog(a,'ok',{method});
+    return out;
+  }catch(e){
+    adminLog(a,'error',{method,note:e.message});
+    throw e;
+  }
+}
 
 function toast(message,bad=false){
   let box=$('.toast-stack');
@@ -324,20 +339,28 @@ function showSuccess(o,accountsOverride){
 
 function adminToken(){return sessionStorage.getItem('vanz_admin_token')||'';}
 function adminTabs(active){
-  const tabs=[['overview','Koneksi API'],['diagnostics','Diagnostik'],['users','User'],['products','Produk'],['stock','Stok'],['appearance','Tampilan']];
-  return `<div class="admin-tabs">${tabs.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`;
+  const groups=[
+    ['System', [['overview','Overview'],['api','API Health'],['diagnostics','Endpoint Lab'],['endpoint-map','API Map'],['limits','Limits']]],
+    ['Order API', [['catalog','Catalog'],['supplier','Supplier'],['users','User Tools'],['balance','Balance'],['register','Register'],['qris','QRIS'],['balance-order','Order Saldo'],['deposit-admin','Deposit'],['status-admin','Status'],['browser-orders','Browser Orders'],['webhook-info','Webhook']]],
+    ['Product Management', [['products','Products'],['product-detail','Product Detail'],['variations','Variations'],['stock','Stock'],['forms','Forms']]],
+    ['Store Tools', [['pricing','Pricing'],['appearance','Theme'],['environment','Environment'],['security','Security'],['logs','Logs']]],
+  ];
+  return `<aside class="admin-sidebar">${groups.map(([title,items])=>`<div class="admin-nav-group"><b>${title}</b>${items.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`).join('')}</aside>`;
 }
 async function renderAdmin(section='overview'){
   if(!adminToken())return renderAdminLogin();
-  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin · ${BUILD_ID}</span><h1>Kontrol VanzShop</h1><p>Operasi produk/user langsung ke Xoftware. Pengaturan tampilan dapat dipreview dan diekspor ke env Vercel.</p></div><button class="btn" id="adminLogout">Keluar</button></div>${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></main>`,'admin');
+  shell(`<main class="admin wrap"><div class="admin-head"><div><span class="section-kicker">Dashboard Admin · ${BUILD_ID}</span><h1>VanzShop Control Center</h1><p>Semua endpoint yang terdokumentasi di README + tool operasional toko, tanpa mengarang endpoint provider.</p></div><div class="button-row"><a class="btn" href="#/">Buka toko</a><button class="btn" id="adminLogout">Keluar</button></div></div><div class="admin-layout">${adminTabs(section)}<div id="adminContent" class="admin-content"><div class="loading-card"><div class="loader"></div><span>Memuat dashboard...</span></div></div></div></main>`,'admin');
   $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_token');renderAdminLogin();};
   try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_token');toast(e.message,true);return renderAdminLogin();}
-  if(section==='diagnostics')return adminDiagnostics();
-  if(section==='users')return adminUsers();
-  if(section==='products')return adminProducts();
-  if(section==='stock')return adminStock();
-  if(section==='appearance')return adminAppearance();
-  return adminOverview();
+  const routes={
+    overview:adminOverview, api:adminApiHealth, diagnostics:adminDiagnostics, 'endpoint-map':adminEndpointMap, limits:adminLimits,
+    catalog:adminCatalog, supplier:adminSuppliers, users:adminUsers, balance:adminBalance, register:adminRegister,
+    qris:adminQris, 'balance-order':adminBalanceOrder, 'deposit-admin':adminDeposit, 'status-admin':adminStatus,
+    'browser-orders':adminBrowserOrders, 'webhook-info':adminWebhook,
+    products:adminProducts, 'product-detail':adminProductDetail, variations:adminVariations, stock:adminStock, forms:adminForms,
+    pricing:adminPricing, appearance:adminAppearance, environment:adminEnvironment, security:adminSecurity, logs:adminLogsView,
+  };
+  return (routes[section]||adminOverview)();
 }
 function renderAdminLogin(){
   shell(`<main class="admin-login wrap"><section class="login-card"><span class="section-kicker">Admin</span><h1>Dashboard toko</h1><p>Password ini dibandingkan dengan <code>ADMIN_PASSWORD</code> di server.</p><label class="form-field"><span>Admin password</span><input id="adminPassword" class="input big" type="password" autocomplete="current-password" placeholder="Masukkan password"></label><button id="adminLoginBtn" class="btn btn-primary btn-buy">Masuk dashboard</button></section></main>`,'admin');
@@ -389,24 +412,31 @@ function adminDiagnostics(){
   const defaultSku=String(state.owner?.[0]?.variations?.[0]?.code||state.owner?.[0]?.code||'');
   const box=$('#adminContent');
   box.innerHTML=`<div class="admin-grid diag-grid">
-    <section class="admin-panel wide"><div class="panel-title"><div><h2>Endpoint Diagnostic</h2><p class="muted">Tes request langsung dari Vercel ke endpoint README. API key tidak pernah ditampilkan. Register dan QRIS adalah aksi nyata — tombolnya meminta konfirmasi.</p></div><span class="build-chip">${BUILD_ID}</span></div></section>
-
-    <section class="admin-panel"><h2>1 · Katalog /v1/product</h2><p class="muted">Aman. Mencoba GET lalu fallback POST jika perlu.</p><button id="diagProduct" class="btn btn-primary">Test katalog</button><div id="diagProductOut" class="admin-result"></div></section>
-
-    <section class="admin-panel"><h2>2 · User /v1/balance</h2><label class="form-field"><span>Channel</span><select id="diagBalanceChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="diagBalanceSender" class="input big" value="${esc(p.sender||'')}" placeholder="628... / Telegram ID"></label><button id="diagBalance" class="btn">Test balance</button><div id="diagBalanceOut" class="admin-result"></div></section>
-
-    <section class="admin-panel"><h2>3 · Register /v1/register</h2><div class="diag-warning">MUTATING: membuat user baru dan terkena limit maksimal 3 registrasi/menit.</div><label class="form-field"><span>Channel</span><select id="diagRegisterChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender baru</span><input id="diagRegisterSender" class="input big" placeholder="628... / Telegram ID"></label><label class="form-field"><span>Nama</span><input id="diagRegisterName" class="input big" placeholder="Nama user test"></label><button id="diagRegister" class="btn danger">Test REGISTER nyata</button><div id="diagRegisterOut" class="admin-result"></div></section>
-
-    <section class="admin-panel"><h2>4 · QRIS /v1/order/qris</h2><div class="diag-warning">MUTATING: membuat invoice QRIS nyata. Gunakan sender yang sudah terdaftar.</div><label class="form-field"><span>Channel</span><select id="diagQrisChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="diagQrisSender" class="input big" value="${esc(p.sender||'')}" placeholder="Sender terdaftar"></label><label class="form-field"><span>SKU</span><input id="diagQrisCode" class="input big" value="${esc(defaultSku)}" placeholder="Kode produk/varian"></label><label class="form-field"><span>Quantity</span><input id="diagQrisQty" class="input big" type="number" min="1" value="1"></label><button id="diagQris" class="btn danger">Buat invoice test</button><div id="diagQrisOut" class="admin-result"></div></section>
-
-    <section class="admin-panel wide"><h2>5 · Status /v1/order/status</h2><div class="diag-inline"><input id="diagStatusId" class="input big" placeholder="transaction_id"><button id="diagStatus" class="btn">Test status</button></div><div id="diagStatusOut" class="admin-result"></div></section>
+    <section class="admin-panel wide"><div class="panel-title"><div><h2>Endpoint Lab · 11 test panels</h2><p class="muted">Read-only endpoint dapat dites langsung. Register/QRIS meminta konfirmasi karena membuat data/invoice nyata.</p></div><span class="build-chip">${BUILD_ID}</span></div></section>
+    <section class="admin-panel"><h2>1 · /v1/product</h2><p class="muted">GET → fallback POST.</p><button id="diagProduct" class="btn btn-primary">Test katalog</button><div id="diagProductOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>2 · /v1/balance</h2><label class="form-field"><span>Channel</span><select id="diagBalanceChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option></select></label><label class="form-field"><span>Sender</span><input id="diagBalanceSender" class="input big" value="${esc(p.sender||'')}"></label><button id="diagBalance" class="btn">Test balance</button><div id="diagBalanceOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>3 · /v1/register</h2><div class="diag-warning">MUTATING · max 3 register/menit.</div><label class="form-field"><span>Channel</span><select id="diagRegisterChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option></select></label><label class="form-field"><span>Sender baru</span><input id="diagRegisterSender" class="input big"></label><label class="form-field"><span>Nama</span><input id="diagRegisterName" class="input big"></label><button id="diagRegister" class="btn danger">REGISTER nyata</button><div id="diagRegisterOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>4 · /v1/order/qris</h2><div class="diag-warning">MUTATING · membuat invoice nyata.</div><label class="form-field"><span>Channel</span><select id="diagQrisChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram</option></select></label><label class="form-field"><span>Sender</span><input id="diagQrisSender" class="input big" value="${esc(p.sender||'')}"></label><label class="form-field"><span>SKU</span><input id="diagQrisCode" class="input big" value="${esc(defaultSku)}"></label><label class="form-field"><span>Qty</span><input id="diagQrisQty" class="input big" type="number" min="1" value="1"></label><button id="diagQris" class="btn danger">Buat invoice</button><div id="diagQrisOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>5 · /v1/order/status</h2><label class="form-field"><span>Transaction ID</span><input id="diagStatusId" class="input big"></label><button id="diagStatus" class="btn">Test status</button><div id="diagStatusOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>6 · /v1/products/forms</h2><button id="diagForms" class="btn">Test forms</button><div id="diagFormsOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>7 · /v1/products/</h2><label class="form-field"><span>Search</span><input id="diagProductsSearch" class="input big"></label><button id="diagProducts" class="btn">Test product list</button><div id="diagProductsOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>8 · /v1/products/:id</h2><label class="form-field"><span>Product ID</span><input id="diagProductId" class="input big"></label><button id="diagProductDetail" class="btn">Test detail</button><div id="diagProductDetailOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>9 · /v1/products/variations/:id</h2><label class="form-field"><span>Variation ID</span><input id="diagVariationId" class="input big"></label><button id="diagVariation" class="btn">Test variation</button><div id="diagVariationOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>10 · /v1/products/:id/stocks</h2><label class="form-field"><span>Product ID</span><input id="diagStockProduct" class="input big"></label><label class="form-field"><span>Variation ID (optional)</span><input id="diagStockVariation" class="input big"></label><button id="diagStocks" class="btn">Test stocks</button><div id="diagStocksOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>11 · Health gateway</h2><p class="muted">Tidak ke Xoftware; cek build/env gateway.</p><button id="diagHealth" class="btn">Test health</button><div id="diagHealthOut" class="admin-result"></div></section>
   </div>`;
-
-  $('#diagProduct').onclick=async()=>{diagnosticOutput('diagProductOut',{running:true});try{diagnosticOutput('diagProductOut',await adminApi('diag_product'));}catch(e){diagnosticOutput('diagProductOut',diagnosticError(e),true);}};
-  $('#diagBalance').onclick=async()=>{diagnosticOutput('diagBalanceOut',{running:true});try{diagnosticOutput('diagBalanceOut',await adminApi('diag_balance',{method:'POST',body:{channel:$('#diagBalanceChannel').value,sender:$('#diagBalanceSender').value}}));}catch(e){diagnosticOutput('diagBalanceOut',diagnosticError(e),true);}};
-  $('#diagRegister').onclick=async()=>{if(!confirm('Ini akan benar-benar memanggil /v1/register dan dapat membuat user baru. Lanjutkan?'))return;diagnosticOutput('diagRegisterOut',{running:true});try{diagnosticOutput('diagRegisterOut',await adminApi('diag_register',{method:'POST',body:{channel:$('#diagRegisterChannel').value,sender:$('#diagRegisterSender').value,name:$('#diagRegisterName').value}}));}catch(e){diagnosticOutput('diagRegisterOut',diagnosticError(e),true);}};
-  $('#diagQris').onclick=async()=>{if(!confirm('Ini akan benar-benar membuat invoice QRIS di Xoftware. Lanjutkan?'))return;diagnosticOutput('diagQrisOut',{running:true});try{diagnosticOutput('diagQrisOut',await adminApi('diag_qris',{method:'POST',body:{channel:$('#diagQrisChannel').value,sender:$('#diagQrisSender').value,code:$('#diagQrisCode').value,quantity:Number($('#diagQrisQty').value||1)}}));}catch(e){diagnosticOutput('diagQrisOut',diagnosticError(e),true);}};
-  $('#diagStatus').onclick=async()=>{diagnosticOutput('diagStatusOut',{running:true});try{diagnosticOutput('diagStatusOut',await adminApi('diag_order_status',{method:'POST',body:{transaction_id:$('#diagStatusId').value}}));}catch(e){diagnosticOutput('diagStatusOut',diagnosticError(e),true);}};
+  const run=async(id,fn)=>{diagnosticOutput(id,{running:true});try{diagnosticOutput(id,await fn());}catch(e){diagnosticOutput(id,diagnosticError(e),true);}};
+  $('#diagProduct').onclick=()=>run('diagProductOut',()=>adminApi('diag_product'));
+  $('#diagBalance').onclick=()=>run('diagBalanceOut',()=>adminApi('diag_balance',{method:'POST',body:{channel:$('#diagBalanceChannel').value,sender:$('#diagBalanceSender').value}}));
+  $('#diagRegister').onclick=()=>{if(confirm('Benar-benar panggil /v1/register?'))run('diagRegisterOut',()=>adminApi('diag_register',{method:'POST',body:{channel:$('#diagRegisterChannel').value,sender:$('#diagRegisterSender').value,name:$('#diagRegisterName').value}}));};
+  $('#diagQris').onclick=()=>{if(confirm('Benar-benar buat invoice QRIS?'))run('diagQrisOut',()=>adminApi('diag_qris',{method:'POST',body:{channel:$('#diagQrisChannel').value,sender:$('#diagQrisSender').value,code:$('#diagQrisCode').value,quantity:Number($('#diagQrisQty').value||1)}}));};
+  $('#diagStatus').onclick=()=>run('diagStatusOut',()=>adminApi('diag_order_status',{method:'POST',body:{transaction_id:$('#diagStatusId').value}}));
+  $('#diagForms').onclick=()=>run('diagFormsOut',()=>adminApi('pm_forms'));
+  $('#diagProducts').onclick=()=>run('diagProductsOut',()=>adminApi('pm_products',{query:{page:1,limit:20,search:$('#diagProductsSearch').value.trim()}}));
+  $('#diagProductDetail').onclick=()=>run('diagProductDetailOut',()=>adminApi('pm_product',{query:{id:$('#diagProductId').value.trim()}}));
+  $('#diagVariation').onclick=()=>run('diagVariationOut',()=>adminApi('pm_variation',{query:{id:$('#diagVariationId').value.trim()}}));
+  $('#diagStocks').onclick=()=>run('diagStocksOut',()=>adminApi('pm_stocks',{query:{product_id:$('#diagStockProduct').value.trim(),variation_id:$('#diagStockVariation').value.trim(),page:1,limit:100}}));
+  $('#diagHealth').onclick=()=>run('diagHealthOut',()=>api('health'));
 }
 
 function adminUsers(){
@@ -415,13 +445,15 @@ function adminUsers(){
   $('#auCheck').onclick=async()=>{try{const sender=$('#auCheckSender').value.trim();const r=await adminApi('owner_balance',{method:'POST',body:{sender}});$('#auResult').innerHTML=`<pre>${esc(JSON.stringify(r,null,2))}</pre>`;}catch(e){$('#auResult').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
 }
 async function adminProducts(){
-  const box=$('#adminContent');box.innerHTML=`<div class="admin-toolbar"><input id="apSearch" class="input big" placeholder="Cari produk / SKU"><button id="apLoad" class="btn">Refresh</button><button id="apNew" class="btn btn-primary">Produk baru</button></div><div id="apForm"></div><div id="apList" class="admin-table-wrap"><div class="loading-card"><div class="loader"></div></div></div>`;
-  const load=async()=>{try{const r=await adminApi('pm_products',{query:{page:1,limit:20,search:$('#apSearch').value.trim()}}),data=r?.data??r,items=Array.isArray(data?.products)?data.products:(Array.isArray(r?.products)?r.products:[]);$('#apList').innerHTML=`<table class="admin-table"><thead><tr><th>ID</th><th>Produk</th><th>SKU</th><th>Harga</th><th>Stok</th><th></th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.id)}</td><td><b>${esc(x.title)}</b><small>${x.is_variation?'Variasi':'Tunggal'}</small></td><td>${esc(x.code||'—')}</td><td>${money(x.price)}</td><td>${esc(x.stock_count??'—')}</td><td><button class="btn btn-sm ap-edit" data-json="${esc(encodeURIComponent(JSON.stringify(x)))}">Edit</button></td></tr>`).join('')}</tbody></table>`;$$('.ap-edit').forEach(b=>b.onclick=()=>showProductForm(JSON.parse(decodeURIComponent(b.dataset.json))));}catch(e){$('#apList').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
-  const showProductForm=(x=null)=>{const edit=Boolean(x?.id);$('#apForm').innerHTML=`<section class="admin-panel wide"><div class="panel-title"><h2>${edit?'Edit produk':'Produk baru'}</h2>${edit?`<button id="apDelete" class="btn danger">Hapus</button>`:''}</div><div class="form-grid"><label class="form-field"><span>Title</span><input id="apTitle" class="input big" value="${esc(x?.title||'')}"></label><label class="form-field"><span>SKU</span><input id="apCode" class="input big" value="${esc(x?.code||'')}"></label><label class="form-field"><span>Harga</span><input id="apPrice" class="input big" type="number" min="0" value="${esc(x?.price??'')}"></label><label class="check-field"><input id="apVar" type="checkbox" ${x?.is_variation?'checked':''}><span>Produk variasi</span></label></div><label class="form-field"><span>Deskripsi</span><textarea id="apDesc" class="input textarea">${esc(x?.desc||x?.description||'')}</textarea></label><button id="apSave" class="btn btn-primary">${edit?'Simpan perubahan':'Buat produk'}</button></section>`;
-    $('#apSave').onclick=async()=>{try{const body={title:$('#apTitle').value.trim(),code:$('#apCode').value.trim(),price:Number($('#apPrice').value||0),desc:$('#apDesc').value.trim(),is_variation:$('#apVar').checked};if(edit)await adminApi('pm_product_update',{method:'POST',body:{id:x.id,...body}});else await adminApi('pm_product_create',{method:'POST',body});toast(edit?'Produk diperbarui.':'Produk dibuat.');$('#apForm').innerHTML='';load();}catch(e){toast(e.message,true);}};
-    if(edit)$('#apDelete').onclick=async()=>{if(!confirm(`Hapus produk ${x.title}? Stok dan variasinya juga dapat ikut terhapus di Xoftware.`))return;try{await adminApi('pm_product_delete',{method:'POST',body:{id:x.id}});toast('Produk dihapus.');$('#apForm').innerHTML='';load();}catch(e){toast(e.message,true);}};
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-toolbar"><input id="apSearch" class="input big" placeholder="Cari produk / SKU"><select id="apVarFilter" class="input"><option value="">Semua tipe</option><option value="false">Tunggal</option><option value="true">Variasi</option></select><button id="apLoad" class="btn">Refresh</button><button id="apNew" class="btn btn-primary">Produk baru</button></div><div id="apForm"></div><div id="apList" class="admin-table-wrap"><div class="loading-card"><div class="loader"></div></div></div>`;
+  const load=async()=>{try{const r=await adminApi('pm_products',{query:{page:1,limit:20,search:$('#apSearch').value.trim(),is_variation:$('#apVarFilter').value}}),data=r?.data??r,items=Array.isArray(data?.products)?data.products:(Array.isArray(r?.products)?r.products:[]),pg=data?.pagination||{};$('#apList').innerHTML=`<div class="table-meta"><span>${esc(pg.total??items.length)} total</span><span>page ${esc(pg.page??1)} / ${esc(pg.total_pages??1)}</span></div><table class="admin-table"><thead><tr><th>ID</th><th>Produk</th><th>SKU</th><th>Harga</th><th>Profit</th><th>Stok</th><th>Show</th><th></th></tr></thead><tbody>${items.map(x=>`<tr><td>${esc(x.id)}</td><td><b>${esc(x.title)}</b><small>${x.is_variation?'Variasi':'Tunggal'} · sold ${esc(x.sold??0)}</small></td><td>${esc(x.code||'—')}</td><td>${money(x.price)}</td><td>${money(x.profit)}</td><td>${esc(x.stock_count??'—')}</td><td>${x.is_show===false?'No':'Yes'}</td><td><button class="btn btn-sm ap-edit" data-id="${esc(x.id)}">Edit</button></td></tr>`).join('')}</tbody></table>`;$$('.ap-edit').forEach(b=>b.onclick=async()=>{try{const full=await adminApi('pm_product',{query:{id:b.dataset.id}});showProductForm(full?.data??full);}catch(e){toast(e.message,true);}});}catch(e){$('#apList').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
+  const showProductForm=(x=null)=>{const edit=Boolean(x?.id), tiers=x?.wholesale_tiers?JSON.stringify(x.wholesale_tiers,null,2):'';$('#apForm').innerHTML=`<section class="admin-panel wide product-editor"><div class="panel-title"><div><h2>${edit?'Edit produk #'+esc(x.id):'Produk baru'}</h2><p class="muted">Field mengikuti README Product Management.</p></div>${edit?`<button id="apDelete" class="btn danger">Hapus produk</button>`:''}</div><div class="form-grid"><label class="form-field"><span>Title *</span><input id="apTitle" class="input big" maxlength="100" value="${esc(x?.title||'')}"></label><label class="form-field"><span>SKU ${x?.is_variation?'(tidak dipakai jika variation)':'*'}</span><input id="apCode" class="input big" maxlength="50" value="${esc(x?.code||'')}"></label><label class="form-field"><span>Harga</span><input id="apPrice" class="input big" type="number" min="0" value="${esc(x?.price??'')}"></label><label class="form-field"><span>Profit</span><input id="apProfit" class="input big" type="number" min="0" value="${esc(x?.profit??'')}"></label><label class="form-field"><span>Form ID</span><input id="apFormId" class="input big" type="number" min="1" value="${esc(x?.form??'')}"></label><label class="check-field"><input id="apVar" type="checkbox" ${x?.is_variation?'checked':''}><span>Produk variasi</span></label>${edit?`<label class="check-field"><input id="apShow" type="checkbox" ${x?.is_show===false?'':'checked'}><span>Tampilkan produk (is_show)</span></label>`:''}</div><label class="form-field"><span>Deskripsi (max 5000)</span><textarea id="apDesc" class="input textarea" maxlength="5000">${esc(x?.desc||x?.description||'')}</textarea></label><label class="form-field"><span>Syarat & ketentuan / SNK (max 5000)</span><textarea id="apSnk" class="input textarea" maxlength="5000">${esc(x?.snk||'')}</textarea></label><label class="form-field"><span>Wholesale tiers JSON (opsional)</span><textarea id="apWholesale" class="input textarea" placeholder='[{"min_qty":5,"price":15000,"profit":2000}]'>${esc(tiers)}</textarea></label>${edit?'':`<label class="form-field"><span>Stok awal (opsional, satu baris per account; gateway auto batch >100)</span><textarea id="apStocks" class="input textarea tall" placeholder="email|password"></textarea></label>`}<div class="button-row"><button id="apSave" class="btn btn-primary">${edit?'Simpan perubahan':'Buat produk'}</button><button id="apCancel" class="btn">Tutup form</button></div><div id="apFormOut" class="admin-result"></div></section>`;
+    $('#apCancel').onclick=()=>{$('#apForm').innerHTML='';};
+    $('#apSave').onclick=async()=>{try{let wholesale;const wr=$('#apWholesale').value.trim();if(wr){wholesale=JSON.parse(wr);if(!Array.isArray(wholesale))throw new Error('wholesale_tiers harus JSON array.');}const body={title:$('#apTitle').value.trim(),code:$('#apCode').value.trim(),price:Number($('#apPrice').value||0),profit:Number($('#apProfit').value||0),desc:$('#apDesc').value.trim(),snk:$('#apSnk').value.trim(),form:Number($('#apFormId').value||0)||undefined,is_variation:$('#apVar').checked,wholesale_tiers:wholesale};if(edit){body.id=x.id;body.is_show=$('#apShow').checked;const r=await adminApi('pm_product_update',{method:'POST',body});diagnosticOutput('apFormOut',r);toast('Produk diperbarui.');}else{body.stocks=$('#apStocks').value.split(/\r?\n/).map(v=>v.trim()).filter(Boolean);const r=await adminApi('pm_product_create',{method:'POST',body});diagnosticOutput('apFormOut',r);toast('Produk dibuat.');}load();}catch(e){diagnosticOutput('apFormOut',diagnosticError(e),true);}};
+    if(edit)$('#apDelete').onclick=async()=>{if(!confirm(`Hapus produk ${x.title}? Produk, variasi, dan stok dapat ikut terhapus di Xoftware.`))return;try{const r=await adminApi('pm_product_delete',{method:'POST',body:{id:x.id}});toast('Produk dihapus.');$('#apForm').innerHTML='';load();}catch(e){toast(e.message,true);}};
   };
-  $('#apLoad').onclick=load;$('#apSearch').onkeydown=e=>{if(e.key==='Enter')load();};$('#apNew').onclick=()=>showProductForm();load();
+  $('#apLoad').onclick=load;$('#apSearch').onkeydown=e=>{if(e.key==='Enter')load();};$('#apVarFilter').onchange=load;$('#apNew').onclick=()=>showProductForm();load();
 }
 function adminStock(){
   const box=$('#adminContent');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Tambah stok</h2><label class="form-field"><span>Product ID</span><input id="asProduct" class="input big" inputmode="numeric"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asVariation" class="input big" inputmode="numeric"></label><label class="form-field"><span>Accounts — satu baris satu stok</span><textarea id="asAccounts" class="input textarea tall" placeholder="email|password\nemail2|password2"></textarea></label><button id="asAdd" class="btn btn-primary">Tambah stok</button></section><section class="admin-panel"><h2>Lihat stok aktif</h2><label class="form-field"><span>Product ID</span><input id="asListProduct" class="input big" inputmode="numeric"></label><label class="form-field"><span>Variation ID <small>(opsional)</small></span><input id="asListVariation" class="input big" inputmode="numeric"></label><button id="asLoad" class="btn">Muat stok</button><div id="asResult" class="admin-result"></div></section></div>`;
@@ -435,6 +467,192 @@ function adminAppearance(){
   $('#aaPreview').onclick=()=>{const x=get();localStorage.setItem('vanz_appearance_override',JSON.stringify(x.appearance));localStorage.setItem('vanz_store_override',JSON.stringify(x.store));state.store=mergeStore({...state.store,...x.store,appearance:x.appearance});applyAppearance();toast('Preview disimpan di browser ini.');renderAdmin('appearance');};
   $('#aaReset').onclick=()=>{localStorage.removeItem('vanz_appearance_override');localStorage.removeItem('vanz_store_override');toast('Preview lokal dihapus. Reload katalog untuk nilai deployment.');location.hash='#/';};
   $('#aaEnv').onclick=async()=>{const x=get(),lines=[`STORE_NAME=${x.store.name}`,`STORE_TAGLINE=${x.store.tagline}`,`STORE_THEME=${x.appearance.theme}`,`STORE_ACCENT=${x.appearance.accent}`,`STORE_RADIUS=${x.appearance.radius}`,`STORE_COLUMNS=${x.appearance.columns}`,`STORE_DENSITY=${x.appearance.density}`,`STORE_HERO=${x.appearance.hero?'true':'false'}`,`STORE_WHATSAPP=${x.store.support.whatsapp}`,`STORE_TELEGRAM=${x.store.support.telegram}`,`STORE_EMAIL=${x.store.support.email}`],txt=lines.join('\n');$('#aaEnvBox').innerHTML=`<div class="env-box"><pre>${esc(txt)}</pre><button id="copyEnv" class="btn btn-sm">Salin ENV</button></div>`;$('#copyEnv').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('ENV disalin.');}catch{toast('Clipboard tidak tersedia.',true);}};};
+}
+
+
+async function adminApiHealth(){
+  const box=$('#adminContent');
+  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Membaca health + katalog...</span></div>';
+  try{
+    const [h,c]=await Promise.all([api('health'),adminApi('catalog_probe')]);
+    const m=c?.summary||{}, limits=h?.documented_limits||{};
+    box.innerHTML=`<div class="admin-grid">
+      <section class="admin-panel"><h2>Server</h2><div class="kv"><span>Build</span><b>${esc(h.build||BUILD_ID)}</b></div><div class="kv"><span>Base URL</span><b>${esc(h.base_url||'—')}</b></div><div class="kv"><span>API key</span><b>${h.ready?'Configured':'Missing'}</b></div><div class="kv"><span>Admin</span><b>${h.admin_ready?'Configured':'Missing'}</b></div></section>
+      <section class="admin-panel"><h2>Katalog live</h2><div class="kv"><span>Endpoint</span><b>${esc(m.endpoint||h.catalog_endpoint||'—')}</b></div><div class="kv"><span>Method</span><b>${esc(m.method||'—')}</b></div><div class="kv"><span>Produk</span><b>${esc(m.count??0)}</b></div><div class="kv"><span>Stok known</span><b>${esc(m.known_stock_total??0)}</b></div></section>
+      <section class="admin-panel wide"><h2>Limit README aktif</h2><div class="metric-grid">${Object.entries(limits).map(([k,v])=>`<div class="metric-card"><small>${esc(k)}</small><strong>${esc(v)}</strong></div>`).join('')}</div></section>
+      <section class="admin-panel wide"><div class="panel-title"><h2>Raw health</h2><button id="copyHealth" class="btn btn-sm">Salin JSON</button></div><div class="admin-result"><pre>${esc(JSON.stringify({health:h,catalog:c?.summary},null,2))}</pre></div></section>
+    </div>`;
+    $('#copyHealth').onclick=async()=>{try{await navigator.clipboard.writeText(JSON.stringify({health:h,catalog:c?.summary},null,2));toast('Health JSON disalin.');}catch{toast('Clipboard gagal.',true);}};
+  }catch(e){box.innerHTML=`<div class="status-card bad"><b>API health gagal</b><span>${esc(e.message)}</span></div>`;}
+}
+
+function adminEndpointMap(){
+  const rows=[
+    ['/v1/product','GET / POST','Read','Katalog + stok + variasi storefront'],
+    ['/v1/register','POST','Write','Registrasi sender baru; izin khusus + rate limit'],
+    ['/v1/balance','GET / POST','Read','Info user, saldo, level, point, buytotal'],
+    ['/v1/order/balance','POST','Danger','Order instan menggunakan saldo user'],
+    ['/v1/order/qris','POST','Write','Membuat invoice QRIS'],
+    ['/v1/deposit','POST','Write','Membuat invoice top-up saldo user'],
+    ['/v1/order/status','GET / POST','Read','Status transaksi + accounts jika sukses'],
+    ['/v1/products/forms','GET','Read','Template form stok'],
+    ['/v1/products/','GET','Read','List produk owner, max 20/page'],
+    ['/v1/products/:id','GET / PUT / DELETE','Mixed','Detail/update/delete produk'],
+    ['/v1/products/','POST','Write','Buat produk'],
+    ['/v1/products/:id/variations','POST','Write','Tambah variasi'],
+    ['/v1/products/variations/:id','GET / PUT / DELETE','Mixed','Detail/update/delete variasi'],
+    ['/v1/products/stocks','POST','Write','Tambah stok, max 100/request'],
+    ['/v1/products/:id/stocks','GET','Read','List stok aktif, max 100/page'],
+    ['/v1/products/stocks/:id','DELETE','Danger','Hapus satu stok'],
+  ];
+  $('#adminContent').innerHTML=`<section class="admin-panel wide"><h2>API Map berdasarkan README</h2><p class="muted">Ini daftar endpoint yang benar-benar dipakai v10. Tidak ada endpoint reseller-api tambahan karena tidak terdokumentasi di README project.</p><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Path</th><th>Method</th><th>Tipe</th><th>Fungsi</th></tr></thead><tbody>${rows.map(r=>`<tr><td><code>${esc(r[0])}</code></td><td>${esc(r[1])}</td><td><span class="api-kind ${String(r[2]).toLowerCase()}">${esc(r[2])}</span></td><td>${esc(r[3])}</td></tr>`).join('')}</tbody></table></div></section>`;
+}
+
+async function adminLimits(){
+  const box=$('#adminContent');
+  try{
+    const h=await api('health'),l=h.documented_limits||{};
+    const codes=[['200','OK','Berhasil'],['201','Created','Produk/variasi/stok dibuat'],['400','Bad Request','Validasi, stok/saldo, limit'],['401','Unauthorized','API key/auth salah'],['403','Forbidden','IP whitelist / akses'],['404','Not Found','Route/data tidak ada'],['409','Conflict','Konflik data/registrasi'],['429','Too Many Requests','Rate limit registrasi'],['500','Internal','Server provider']];
+    box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Limit Order API</h2><div class="kv"><span>Register</span><b>${esc(l.register_per_minute??3)}/menit</b></div><div class="kv"><span>Deposit min</span><b>${money(l.deposit_min??1000)}</b></div><div class="kv"><span>Deposit max</span><b>${money(l.deposit_max??1000000)}</b></div></section><section class="admin-panel"><h2>Limit Product API</h2><div class="kv"><span>Produk/page</span><b>${esc(l.product_page??20)}</b></div><div class="kv"><span>Stok/request</span><b>${esc(l.stock_batch??100)}</b></div><div class="kv"><span>Variasi/produk</span><b>${esc(l.variations_per_product??30)}</b></div><div class="kv"><span>SKU</span><b>${esc(l.sku_min??3)}-${esc(l.sku_max??50)} chars</b></div></section><section class="admin-panel wide"><h2>HTTP status reference</h2><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Code</th><th>Nama</th><th>Makna</th></tr></thead><tbody>${codes.map(x=>`<tr><td><b>${x[0]}</b></td><td>${x[1]}</td><td>${x[2]}</td></tr>`).join('')}</tbody></table></div></section></div>`;
+  }catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
+}
+
+async function adminCatalog(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-toolbar"><input id="acSearch" class="input big" placeholder="Cari title / SKU"><button id="acReload" class="btn btn-primary">Refresh live</button></div><div id="acBody"><div class="loading-card"><div class="loader"></div></div></div>`;
+  let products=[];
+  const draw=()=>{
+    const q=String($('#acSearch')?.value||'').toLowerCase();
+    const list=products.filter(p=>`${p.title} ${p.code} ${p.description}`.toLowerCase().includes(q));
+    $('#acBody').innerHTML=`<div class="metric-grid"><div class="metric-card"><small>Produk</small><strong>${products.length}</strong></div><div class="metric-card"><small>Supplier</small><strong>${products.filter(x=>x.is_reseller).length}</strong></div><div class="metric-card"><small>Variasi</small><strong>${products.reduce((n,x)=>n+(x.variations?.length||0),0)}</strong></div><div class="metric-card"><small>Stok known</small><strong>${products.reduce((n,x)=>n+(x.stock==null?0:Number(x.stock)||0),0)}</strong></div></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Produk</th><th>SKU</th><th>Harga</th><th>Stok</th><th>Supplier</th><th>Variasi</th></tr></thead><tbody>${list.map(p=>`<tr><td>${esc(p.id??'—')}</td><td><b>${esc(p.title)}</b><small>${esc((p.description||'').slice(0,90))}</small></td><td>${esc(p.code||'—')}</td><td>${money(p.price)}</td><td>${esc(p.stock??'—')}</td><td>${p.is_reseller?'Yes':'No'}</td><td>${esc(p.variations?.length||0)}</td></tr>`).join('')}</tbody></table></div>`;
+  };
+  const load=async()=>{try{const r=await adminApi('catalog_probe');products=Array.isArray(r.products)?r.products:[];draw();}catch(e){$('#acBody').innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}};
+  $('#acSearch').oninput=draw;$('#acReload').onclick=load;load();
+}
+
+async function adminSuppliers(){
+  const box=$('#adminContent');
+  box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Membaca is_reseller...</span></div>';
+  try{
+    const r=await adminApi('catalog_probe'),items=(r.products||[]).filter(x=>x.is_reseller);
+    box.innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Supplier products dari Order API</h2><p class="muted">README menandai produk supplier melalui <code>is_reseller: true</code> di <code>/v1/product</code>. Tab ini hanya membaca flag tersebut.</p><div class="metric-grid"><div class="metric-card"><small>Supplier products</small><strong>${items.length}</strong></div><div class="metric-card"><small>Stok known</small><strong>${items.reduce((n,x)=>n+(x.stock==null?0:Number(x.stock)||0),0)}</strong></div></div></section><section class="admin-panel wide"><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Produk</th><th>SKU</th><th>Harga</th><th>Stok</th></tr></thead><tbody>${items.length?items.map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.title)}</td><td>${esc(x.code||'—')}</td><td>${money(x.price)}</td><td>${esc(x.stock??'—')}</td></tr>`).join(''):'<tr><td colspan="5">Tidak ada produk dengan is_reseller=true.</td></tr>'}</tbody></table></div></section></div>`;
+  }catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
+}
+
+function adminBalance(){
+  const p=profile()||{};const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Cek /v1/balance</h2><label class="form-field"><span>Channel</span><select id="abChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="abSender" class="input big" value="${esc(p.sender||'')}" placeholder="628... / Telegram ID"></label><button id="abGo" class="btn btn-primary">Cek user</button></section><section class="admin-panel"><h2>Ringkasan user</h2><div id="abSummary" class="admin-result"><span class="muted">Belum ada data.</span></div></section><section class="admin-panel wide"><h2>Raw response</h2><div id="abRaw" class="admin-result"></div></section></div>`;
+  $('#abGo').onclick=async()=>{try{const r=await adminApi('owner_balance',{method:'POST',body:{channel:$('#abChannel').value,sender:$('#abSender').value.trim()}}),d=r?.data??r;$('#abSummary').innerHTML=`<div class="metric-grid"><div class="metric-card"><small>Nama</small><strong>${esc(d.name||'—')}</strong></div><div class="metric-card"><small>Saldo</small><strong>${money(d.saldo)}</strong></div><div class="metric-card"><small>Saldo used</small><strong>${money(d.saldoused)}</strong></div><div class="metric-card"><small>Buy total</small><strong>${esc(d.buytotal??0)}</strong></div><div class="metric-card"><small>Point</small><strong>${esc(d.point??0)}</strong></div><div class="metric-card"><small>Level</small><strong>${esc(d.level||'—')}</strong></div></div>`;diagnosticOutput('abRaw',r);}catch(e){diagnosticOutput('abRaw',diagnosticError(e),true);}};
+}
+
+function adminRegister(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Register user</h2><div class="diag-warning">Aksi nyata. README: maksimal 3 registrasi/menit dan permission register bisa dinonaktifkan provider.</div><label class="form-field"><span>Channel</span><select id="arChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender</span><input id="arSender" class="input big" placeholder="628... / Telegram ID"></label><label class="form-field"><span>Nama</span><input id="arName" class="input big" placeholder="Nama user"></label><button id="arGo" class="btn danger">Register nyata</button></section><section class="admin-panel"><h2>Response</h2><div id="arOut" class="admin-result"></div></section></div>`;
+  $('#arGo').onclick=async()=>{if(!confirm('Buat user Xoftware baru sekarang?'))return;try{const r=await adminApi('owner_register',{method:'POST',body:{channel:$('#arChannel').value,sender:$('#arSender').value.trim(),name:$('#arName').value.trim()}});diagnosticOutput('arOut',r);toast('Request register selesai.');}catch(e){diagnosticOutput('arOut',diagnosticError(e),true);}};
+}
+
+function adminQris(){
+  const p=profile()||{},sku=String(state.owner?.[0]?.variations?.[0]?.code||state.owner?.[0]?.code||'');
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Buat invoice QRIS</h2><div class="diag-warning">Aksi nyata: membuat invoice Xoftware.</div><label class="form-field"><span>Channel</span><select id="aqChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender terdaftar</span><input id="aqSender" class="input big" value="${esc(p.sender||'')}"></label><label class="form-field"><span>SKU</span><input id="aqSku" class="input big" value="${esc(sku)}"></label><label class="form-field"><span>Qty</span><input id="aqQty" class="input big" type="number" min="1" value="1"></label><button id="aqGo" class="btn danger">Buat invoice QRIS</button></section><section class="admin-panel"><h2>Invoice result</h2><div id="aqOut" class="admin-result"></div></section></div>`;
+  $('#aqGo').onclick=async()=>{if(!confirm('Membuat invoice QRIS nyata?'))return;try{const r=await adminApi('admin_order_qris',{method:'POST',body:{channel:$('#aqChannel').value,sender:$('#aqSender').value.trim(),code:$('#aqSku').value.trim(),quantity:Number($('#aqQty').value||1)}});diagnosticOutput('aqOut',r);toast('Invoice QRIS dibuat.');}catch(e){diagnosticOutput('aqOut',diagnosticError(e),true);}};
+}
+
+function adminBalanceOrder(){
+  const p=profile()||{};const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Order via saldo</h2><div class="diag-warning">DANGER: endpoint ini langsung memotong saldo user jika order sukses.</div><label class="form-field"><span>Channel</span><select id="aboChannel" class="input big"><option value="whatsapp" ${p.channel==='telegram'?'':'selected'}>WhatsApp</option><option value="telegram" ${p.channel==='telegram'?'selected':''}>Telegram ID</option></select></label><label class="form-field"><span>Sender terdaftar</span><input id="aboSender" class="input big" value="${esc(p.sender||'')}"></label><label class="form-field"><span>SKU</span><input id="aboSku" class="input big"></label><label class="form-field"><span>Qty</span><input id="aboQty" class="input big" type="number" min="1" value="1"></label><button id="aboGo" class="btn danger">Order pakai saldo</button></section><section class="admin-panel"><h2>Response</h2><div id="aboOut" class="admin-result"></div></section></div>`;
+  $('#aboGo').onclick=async()=>{if(!confirm('Order ini dapat langsung mengurangi saldo user. Lanjutkan?'))return;try{const r=await adminApi('checkout_balance',{method:'POST',body:{channel:$('#aboChannel').value,sender:$('#aboSender').value.trim(),code:$('#aboSku').value.trim(),quantity:Number($('#aboQty').value||1)}});diagnosticOutput('aboOut',r);toast('Order saldo selesai.');}catch(e){diagnosticOutput('aboOut',diagnosticError(e),true);}};
+}
+
+function adminDeposit(){
+  const p=profile()||{};const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Buat deposit</h2><div class="diag-warning">Aksi nyata: membuat invoice top-up Rp1.000–Rp1.000.000.</div><label class="form-field"><span>Channel</span><select id="adChannel" class="input big"><option value="whatsapp">WhatsApp</option><option value="telegram">Telegram ID</option></select></label><label class="form-field"><span>Sender terdaftar</span><input id="adSender" class="input big" value="${esc(p.sender||'')}"></label><label class="form-field"><span>Amount</span><input id="adAmount" class="input big" type="number" min="1000" max="1000000" step="1000" value="50000"></label><button id="adGo" class="btn danger">Buat invoice deposit</button></section><section class="admin-panel"><h2>Response</h2><div id="adOut" class="admin-result"></div></section></div>`;
+  $('#adGo').onclick=async()=>{if(!confirm('Buat invoice deposit nyata?'))return;try{const r=await adminApi('admin_deposit',{method:'POST',body:{channel:$('#adChannel').value,sender:$('#adSender').value.trim(),amount:Number($('#adAmount').value||0)}});diagnosticOutput('adOut',r);toast('Invoice deposit dibuat.');}catch(e){diagnosticOutput('adOut',diagnosticError(e),true);}};
+}
+
+function adminStatus(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Cek status transaksi</h2><label class="form-field"><span>Transaction ID / Reff ID</span><input id="astTx" class="input big" placeholder="API-... / recap id"></label><div class="button-row"><button id="astPost" class="btn btn-primary">POST status</button><button id="astGet" class="btn">GET status</button></div></section><section class="admin-panel"><h2>Response</h2><div id="astOut" class="admin-result"></div></section></div>`;
+  const go=async(method)=>{try{const id=$('#astTx').value.trim();const r=await adminApi('admin_order_status',method==='GET'?{method:'GET',query:{transaction_id:id}}:{method:'POST',body:{transaction_id:id}});diagnosticOutput('astOut',r);}catch(e){diagnosticOutput('astOut',diagnosticError(e),true);}};
+  $('#astPost').onclick=()=>go('POST');$('#astGet').onclick=()=>go('GET');
+}
+
+function adminBrowserOrders(){
+  const list=orders();
+  $('#adminContent').innerHTML=`<section class="admin-panel wide"><div class="panel-title"><div><h2>Order history browser ini</h2><p class="muted">No-DB: hanya localStorage browser admin ini, bukan history global Xoftware.</p></div><button id="aboClear" class="btn danger">Clear local history</button></div>${list.length?`<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Created</th><th>Type</th><th>Transaction</th><th>Produk</th><th>Sender</th><th>Total</th><th>Status</th></tr></thead><tbody>${list.map(o=>`<tr><td>${new Date(o.created_at||Date.now()).toLocaleString('id-ID')}</td><td>${esc(o.type||'—')}</td><td>${esc(o.transaction_id)}</td><td>${esc(o.product_title||'—')}</td><td>${esc(o.sender||'—')}</td><td>${money(o.total)}</td><td>${esc(o.status||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Belum ada order tersimpan di browser ini.</p>'}</section>`;
+  $('#aboClear').onclick=()=>{if(confirm('Hapus seluruh history lokal browser ini?')){localStorage.removeItem('vanz_orders');toast('History lokal dihapus.');adminBrowserOrders();}};
+}
+
+function adminWebhook(){
+  const url=`${location.origin}/api/xo?a=webhook`;
+  const sample={event:'buy_account',transaction_id:'API-ABCDE12345',reff_id:'',sender:'628xxx',product_code:'NETFLIX_1M',quantity:1,total_price:35000,platform:'API',accounts:[{email:'user@example.com',pass:'secret123'}]};
+  $('#adminContent').innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Callback URL</h2><label class="form-field"><span>Webhook Xoftware</span><input id="awUrl" class="input big" readonly value="${esc(url)}"></label><button id="awCopy" class="btn btn-primary">Salin URL</button><p class="muted">Receiver sekarang hanya ACK payload; project no-DB belum menyimpan webhook sebagai source of truth.</p></section><section class="admin-panel"><h2>Event README</h2><div class="kv"><span>Contoh event</span><b>buy_account / buy_balance</b></div><div class="kv"><span>Platform</span><b>API</b></div><div class="kv"><span>Accounts</span><b>ada jika fulfillment tersedia</b></div></section><section class="admin-panel wide"><h2>Sample payload</h2><div class="admin-result"><pre>${esc(JSON.stringify(sample,null,2))}</pre></div></section></div>`;
+  $('#awCopy').onclick=async()=>{try{await navigator.clipboard.writeText(url);toast('Webhook URL disalin.');}catch{toast('Clipboard gagal.',true);}};
+}
+
+function adminProductDetail(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Detail produk owner</h2><label class="form-field"><span>Product ID</span><input id="apdId" class="input big" inputmode="numeric"></label><button id="apdGo" class="btn btn-primary">GET detail</button></section><section class="admin-panel"><h2>Raw response</h2><div id="apdOut" class="admin-result"></div></section></div>`;
+  $('#apdGo').onclick=async()=>{try{const r=await adminApi('pm_product',{query:{id:$('#apdId').value.trim()}});diagnosticOutput('apdOut',r);}catch(e){diagnosticOutput('apdOut',diagnosticError(e),true);}};
+}
+
+function adminVariations(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid">
+    <section class="admin-panel"><h2>Detail variasi</h2><label class="form-field"><span>Variation ID</span><input id="avGetId" class="input big"></label><button id="avGet" class="btn">GET variasi</button><div id="avGetOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>Tambah variasi</h2><label class="form-field"><span>Product ID</span><input id="avProduct" class="input big"></label><label class="form-field"><span>SKU</span><input id="avCode" class="input big"></label><label class="form-field"><span>Title</span><input id="avTitle" class="input big"></label><div class="form-grid"><label class="form-field"><span>Price</span><input id="avPrice" class="input big" type="number"></label><label class="form-field"><span>Profit</span><input id="avProfit" class="input big" type="number"></label><label class="form-field"><span>Form ID</span><input id="avForm" class="input big" type="number"></label></div><label class="form-field"><span>Desc</span><textarea id="avDesc" class="input textarea"></textarea></label><label class="form-field"><span>SNK</span><textarea id="avSnk" class="input textarea"></textarea></label><label class="form-field"><span>Initial stocks (opsional, satu baris)</span><textarea id="avStocks" class="input textarea"></textarea></label><button id="avCreate" class="btn btn-primary">Buat variasi</button><div id="avCreateOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>Update variasi</h2><label class="form-field"><span>Variation ID</span><input id="avUpdateId" class="input big"></label><label class="form-field"><span>Title</span><input id="avUpdateTitle" class="input big"></label><label class="form-field"><span>SKU</span><input id="avUpdateCode" class="input big"></label><div class="form-grid"><label class="form-field"><span>Price</span><input id="avUpdatePrice" class="input big" type="number"></label><label class="form-field"><span>Profit</span><input id="avUpdateProfit" class="input big" type="number"></label></div><button id="avUpdate" class="btn btn-primary">Update</button><div id="avUpdateOut" class="admin-result"></div></section>
+    <section class="admin-panel"><h2>Hapus variasi</h2><div class="diag-warning">Menghapus variasi adalah aksi permanen di Xoftware.</div><label class="form-field"><span>Variation ID</span><input id="avDeleteId" class="input big"></label><button id="avDelete" class="btn danger">Delete variasi</button><div id="avDeleteOut" class="admin-result"></div></section>
+  </div>`;
+  $('#avGet').onclick=async()=>{try{diagnosticOutput('avGetOut',await adminApi('pm_variation',{query:{id:$('#avGetId').value.trim()}}));}catch(e){diagnosticOutput('avGetOut',diagnosticError(e),true);}};
+  $('#avCreate').onclick=async()=>{try{const stocks=$('#avStocks').value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);const body={product_id:$('#avProduct').value.trim(),code:$('#avCode').value.trim(),title:$('#avTitle').value.trim(),price:Number($('#avPrice').value||0),profit:Number($('#avProfit').value||0),form:Number($('#avForm').value||0)||undefined,desc:$('#avDesc').value.trim(),snk:$('#avSnk').value.trim(),stocks};diagnosticOutput('avCreateOut',await adminApi('pm_variation_create',{method:'POST',body}));toast('Variasi dibuat.');}catch(e){diagnosticOutput('avCreateOut',diagnosticError(e),true);}};
+  $('#avUpdate').onclick=async()=>{try{const body={id:$('#avUpdateId').value.trim()};if($('#avUpdateTitle').value.trim())body.title=$('#avUpdateTitle').value.trim();if($('#avUpdateCode').value.trim())body.code=$('#avUpdateCode').value.trim();if($('#avUpdatePrice').value!=='')body.price=Number($('#avUpdatePrice').value);if($('#avUpdateProfit').value!=='')body.profit=Number($('#avUpdateProfit').value);diagnosticOutput('avUpdateOut',await adminApi('pm_variation_update',{method:'POST',body}));toast('Variasi diupdate.');}catch(e){diagnosticOutput('avUpdateOut',diagnosticError(e),true);}};
+  $('#avDelete').onclick=async()=>{if(!confirm('Hapus variasi ini?'))return;try{diagnosticOutput('avDeleteOut',await adminApi('pm_variation_delete',{method:'POST',body:{id:$('#avDeleteId').value.trim()}}));toast('Variasi dihapus.');}catch(e){diagnosticOutput('avDeleteOut',diagnosticError(e),true);}};
+}
+
+async function adminForms(){
+  const box=$('#adminContent');box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Memuat forms...</span></div>';
+  try{const r=await adminApi('pm_forms'),items=Array.isArray(r?.data)?r.data:(Array.isArray(r)?r:[]);box.innerHTML=`<section class="admin-panel wide"><div class="panel-title"><div><h2>Template Form Stok</h2><p class="muted">Gunakan Form ID saat create produk/variasi agar format pipe stok sesuai template Xoftware.</p></div><span class="build-chip">${items.length} forms</span></div><div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>ID</th><th>Name</th><th>Fields</th><th>Required</th><th>Contoh format stok</th></tr></thead><tbody>${items.map(f=>`<tr><td>${esc(f.id)}</td><td>${esc(f.name)}</td><td>${esc((f.fields||[]).join(' | '))}</td><td>${esc((f.required_fields||[]).join(' | '))}</td><td><code>${esc((f.fields||[]).map((x,i)=>`${String(x).toLowerCase().replace(/\s+/g,'')}${i+1}`).join('|'))}</code></td></tr>`).join('')}</tbody></table></div><div class="admin-result"><pre>${esc(JSON.stringify(r,null,2))}</pre></div></section>`;}catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
+}
+
+function adminPricing(){
+  const box=$('#adminContent');
+  box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Pricing calculator</h2><p class="muted">Tool lokal, bukan endpoint Xoftware. Cocok untuk menentukan harga jual setelah modal, target profit, dan fee payment gateway.</p><label class="form-field"><span>Modal produk</span><input id="prCost" class="input big" type="number" value="10000"></label><label class="form-field"><span>Target profit</span><input id="prProfit" class="input big" type="number" value="3000"></label><div class="form-grid"><label class="form-field"><span>Fee %</span><input id="prPct" class="input big" type="number" step="0.01" value="0.7"></label><label class="form-field"><span>Fee fixed</span><input id="prFixed" class="input big" type="number" value="310"></label></div><button id="prCalc" class="btn btn-primary">Hitung</button></section><section class="admin-panel"><h2>Hasil</h2><div id="prOut"></div></section></div>`;
+  const calc=()=>{const cost=Number($('#prCost').value||0),profit=Number($('#prProfit').value||0),pct=Number($('#prPct').value||0)/100,fixed=Number($('#prFixed').value||0);const target=cost+profit;const sell=Math.ceil((target+fixed)/(1-pct));const fee=Math.ceil(sell*pct+fixed),net=sell-fee;$('#prOut').innerHTML=`<div class="metric-grid"><div class="metric-card"><small>Harga jual minimum</small><strong>${money(sell)}</strong></div><div class="metric-card"><small>Estimasi fee</small><strong>${money(fee)}</strong></div><div class="metric-card"><small>Bersih masuk</small><strong>${money(net)}</strong></div><div class="metric-card"><small>Profit bersih</small><strong>${money(net-cost)}</strong></div></div>`;};
+  $('#prCalc').onclick=calc;calc();
+}
+
+function adminEnvironment(){
+  const s=state.store.support||{},a=state.store.appearance||{};
+  const lines=[
+    'XSOFTWARE_API_KEY=ISI_DI_VERCEL_JANGAN_DI_GITHUB',
+    'ADMIN_PASSWORD=ISI_PASSWORD_ADMIN',
+    `STORE_NAME=${state.store.name||'VanzShop.com'}`,
+    `STORE_TAGLINE=${state.store.tagline||''}`,
+    `STORE_WHATSAPP=${s.whatsapp||''}`,
+    `STORE_TELEGRAM=${s.telegram||''}`,
+    `STORE_EMAIL=${s.email||''}`,
+    `STORE_THEME=${a.theme||'dark'}`,
+    `STORE_ACCENT=${a.accent||'#f3c74f'}`,
+    `STORE_RADIUS=${a.radius||20}`,
+    `STORE_COLUMNS=${a.columns||5}`,
+    `STORE_DENSITY=${a.density||'compact'}`,
+    `STORE_HERO=${a.hero!==false?'true':'false'}`,
+    'XSOFTWARE_TIMEOUT=25000'
+  ];const txt=lines.join('\n');
+  $('#adminContent').innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Vercel Environment helper</h2><div class="diag-warning">Jangan commit API key/password asli ke GitHub. Isi secret langsung di Vercel Environment Variables.</div><div class="env-box"><pre>${esc(txt)}</pre><button id="aeCopy" class="btn btn-primary">Salin template ENV</button></div></section><section class="admin-panel"><h2>Wajib</h2><div class="kv"><span>XSOFTWARE_API_KEY</span><b>secret</b></div><div class="kv"><span>ADMIN_PASSWORD</span><b>secret</b></div></section><section class="admin-panel"><h2>Opsional</h2><p class="muted">STORE_* mengatur tampilan/kontak global. XSOFTWARE_TIMEOUT mengatur timeout request provider.</p></section></div>`;
+  $('#aeCopy').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('Template ENV disalin.');}catch{toast('Clipboard gagal.',true);}};
+}
+
+async function adminSecurity(){
+  const box=$('#adminContent');
+  try{const h=await api('health');box.innerHTML=`<div class="admin-grid"><section class="admin-panel"><h2>Admin session</h2><div class="kv"><span>Token</span><b>${adminToken()?'Active':'Missing'}</b></div><div class="kv"><span>Build</span><b>${esc(h.build||BUILD_ID)}</b></div><div class="kv"><span>Admin env</span><b>${h.admin_ready?'Configured':'Missing'}</b></div><p class="muted">Admin v10 memakai signed session token. Password tidak dikirim pada setiap request setelah login.</p></section><section class="admin-panel"><h2>Provider security</h2><div class="kv"><span>API key</span><b>${h.ready?'Server-side':'Missing'}</b></div><div class="kv"><span>IP whitelist</span><b>Atur di Xoftware</b></div><p class="muted">README menyebut HTTP 403 jika IP server tidak masuk whitelist. Vercel egress dapat berubah kecuali memakai solusi static egress.</p></section><section class="admin-panel wide"><h2>Checklist</h2><div class="checklist"><span>✓ API key tidak ada di frontend</span><span>✓ Admin password tidak disimpan localStorage</span><span>✓ Mutating action memakai confirmation</span><span>✓ Raw stock hanya ditampilkan setelah admin auth</span><span>✓ Public order status memakai signed token</span></div></section></div>`;}catch(e){box.innerHTML=`<div class="status-card bad">${esc(e.message)}</div>`;}
+}
+
+function adminLogsView(){
+  const logs=readAdminLogs();
+  $('#adminContent').innerHTML=`<section class="admin-panel wide"><div class="panel-title"><div><h2>Admin activity log</h2><p class="muted">Log lokal browser ini saja; tidak ada database server.</p></div><button id="alClear" class="btn danger">Clear logs</button></div>${logs.length?`<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Time</th><th>Action</th><th>Method</th><th>Status</th><th>Note</th></tr></thead><tbody>${logs.map(x=>`<tr><td>${new Date(x.time).toLocaleString('id-ID')}</td><td><code>${esc(x.action)}</code></td><td>${esc(x.method)}</td><td>${esc(x.status)}</td><td>${esc(x.note||'')}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">Belum ada log.</p>'}</section>`;
+  $('#alClear').onclick=()=>{if(confirm('Hapus seluruh log admin lokal?')){localStorage.removeItem('vanz_admin_logs');adminLogsView();}};
 }
 
 async function ensureInit(){

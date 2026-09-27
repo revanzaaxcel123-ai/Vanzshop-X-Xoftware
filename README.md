@@ -1,5 +1,23 @@
-# VanzShop X Xoftware — HARDMAX v8
+# VanzShop X Xoftware — HARDMAX v10
 
+## Control Center v10
+
+Dashboard admin diperluas menjadi control center berbasis **endpoint yang terdokumentasi di README ini**. Tidak ada endpoint provider tambahan yang dikarang.
+
+Menu admin v10:
+
+- System: Overview, API Health, Endpoint Lab, API Map, Limits.
+- Order API: Catalog, Supplier flag, User Tools, Balance, Register, QRIS, Order Saldo, Deposit, Status, Browser Orders, Webhook.
+- Product Management: Products full CRUD, Product Detail, Variations CRUD, Stock add/list/delete, Forms.
+- Store Tools: Pricing calculator, Theme/Profile, Environment helper, Security, Logs.
+
+Endpoint Lab mempunyai 11 panel test. Aksi mutating (register, QRIS, order saldo, deposit, delete) diberi confirmation.
+
+Admin memakai signed session token setelah login; API key dan ADMIN_PASSWORD tidak diekspos ke browser.
+
+Build marker: `HARDMAX-v10`.
+
+---
 ## Admin route fix
 
 `/admin` sekarang dilayani oleh file fisik `admin.html` dengan `cleanUrls: true`, bukan bergantung pada rewrite SPA. Fallback `/#/admin` tetap didukung.
