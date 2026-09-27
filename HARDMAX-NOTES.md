@@ -1,15 +1,10 @@
-# HARDMAX v10 Notes
+# HARDMAX v11
 
-- README project tetap menjadi source of truth untuk kontrak Xoftware.
-- Storefront mengambil katalog dari `GET/POST /v1/product`.
-- Produk supplier ditandai oleh `is_reseller`; tidak ada dependensi aktif ke endpoint reseller-api yang tidak terdokumentasi.
-- Admin route tersedia lewat `/admin` dan `/#/admin`.
-- Admin login mengeluarkan signed session token 12 jam.
-- Dashboard mempunyai lebih dari 20 menu operasional dan 11 panel Endpoint Lab.
-- Order API yang diekspos: product, register, balance, order/balance, order/qris, deposit, order/status, webhook receiver.
-- Product Management yang diekspos: forms, product list/detail/create/update/delete, variation create/detail/update/delete, stock add/list/delete.
-- Stock add >100 otomatis dibatch sesuai limit README.
-- UI tools lokal: supplier view, pricing calculator, environment helper, theme/profile, security checklist, local admin logs, browser order history.
-- Tidak ada database. Setting preview, admin log, profile customer, dan browser order history yang bersifat lokal menggunakan localStorage/sessionStorage.
-- Mutating operations memakai confirmation.
-- Build marker `HARDMAX-v10` tersedia di frontend dan endpoint health/admin_ping.
+- Tidak menambahkan OTP karena README/API Order tidak mendokumentasikan endpoint OTP.
+- Menambah `XSOFTWARE_CHECKOUT_MODE=user|shared`.
+- Shared mode memakai satu sender Xoftware existing untuk order QRIS dan tidak meregistrasikan buyer.
+- Buyer contact tetap disimpan lokal di browser untuk riwayat order.
+- `accounts[]` hasil sukses tetap muncul di website melalui polling `/v1/order/status`.
+- Deposit publik dimatikan pada shared mode supaya saldo tidak masuk ke akun shared sender tanpa konteks.
+- Menambah admin/server action `shared_sender_probe`.
+- Build: HARDMAX-v11; asset version: 19.

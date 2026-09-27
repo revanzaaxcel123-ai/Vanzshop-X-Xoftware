@@ -1,3 +1,32 @@
+# HARDMAX v11 — Checkout Identity Fix
+
+## Fakta API yang diverifikasi
+
+Order API Xoftware yang menjadi acuan project **tidak mendokumentasikan OTP** untuk registrasi API. Endpoint registrasi adalah `POST /v1/register` dengan body `sender` + `name`, dan dokumentasi menyatakan fitur tersebut memerlukan aktivasi izin khusus pada tingkat penyedia layanan. Karena itu project tidak membuat endpoint OTP fiktif.
+
+## Dua mode checkout
+
+### `XSOFTWARE_CHECKOUT_MODE=user`
+Mode sesuai model user Xoftware: buyer dicek melalui `/v1/balance`; user baru dicoba dibuat melalui `/v1/register`; lalu `/v1/order/qris` memakai sender buyer. Jika provider mematikan API Registration, user baru memang tidak dapat dibuat oleh code toko.
+
+### `XSOFTWARE_CHECKOUT_MODE=shared`
+Mode kompatibilitas untuk storefront: buyer tetap memasukkan nama + WhatsApp/Telegram sebagai data kontak lokal, tetapi request `/v1/order/qris` memakai satu `XSOFTWARE_SHARED_SENDER` yang **sudah terdaftar** di Xoftware. Dengan mode ini checkout buyer tidak memanggil `/v1/register`.
+
+Contoh Vercel ENV:
+
+```text
+XSOFTWARE_CHECKOUT_MODE=shared
+XSOFTWARE_SHARED_CHANNEL=whatsapp
+XSOFTWARE_SHARED_SENDER=628xxxxxxxxxx
+XSOFTWARE_SHARED_NAME=VanzShop Checkout
+```
+
+> Shared mode tetap membutuhkan minimal satu sender existing. Jika tidak ada satu pun sender yang sudah terdaftar dan `/v1/register` dinonaktifkan oleh Xoftware, Order API tidak menyediakan jalur terdokumentasi untuk membuat buyer baru dari project ini.
+
+Setelah QRIS sukses, website tetap mengambil `accounts[]` dari `/v1/order/status` dan menampilkannya di halaman sukses. Pengiriman otomatis ke WhatsApp membutuhkan API WhatsApp terpisah; Order API README tidak mendokumentasikan endpoint kirim pesan WhatsApp.
+
+---
+
 # VanzShop X Xoftware — HARDMAX v10
 
 ## Control Center v10

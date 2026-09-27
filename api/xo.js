@@ -12,7 +12,13 @@ function envSecret(v){
 }
 const ADMIN_PASSWORD = envSecret(process.env.ADMIN_PASSWORD);
 const TIMEOUT_MS = Math.max(5000, Math.min(60000, Number(process.env.XSOFTWARE_TIMEOUT || 25000)));
-const BUILD_ID = 'HARDMAX-v10';
+const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSOFTWARE_CHECKOUT_MODE || 'user').trim().toLowerCase())
+  ? String(process.env.XSOFTWARE_CHECKOUT_MODE || 'user').trim().toLowerCase()
+  : 'user';
+const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
+const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
+const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
+const BUILD_ID = 'HARDMAX-v11';
 
 const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
@@ -126,6 +132,16 @@ function normalizeWhatsApp(v){
 }
 function normalizeSender(v,channel){ return channel==='telegram' ? String(v||'').trim().slice(0,160) : normalizeWhatsApp(v); }
 function validSender(v,channel){ return channel==='telegram' ? String(v||'').trim().length>0 && String(v||'').trim().length<=160 : /^\d{7,20}$/.test(String(v||'')); }
+function sharedIdentity(){
+  const sender=normalizeSender(SHARED_SENDER_RAW,SHARED_CHANNEL);
+  return {mode:CHECKOUT_IDENTITY_MODE,channel:SHARED_CHANNEL,sender,name:SHARED_NAME,configured:validSender(sender,SHARED_CHANNEL)};
+}
+function maskSender(v){
+  const s=String(v||'');
+  if(!s) return '';
+  if(s.length<=6) return '*'.repeat(s.length);
+  return `${s.slice(0,3)}${'*'.repeat(Math.max(3,s.length-6))}${s.slice(-3)}`;
+}
 function validateCatalogText(p){
   if(p.title!==undefined && String(p.title).length>LIMITS.title_max) throw Object.assign(new Error(`title maksimal ${LIMITS.title_max} karakter.`),{status:400});
   if(p.desc!==undefined && String(p.desc).length>LIMITS.desc_max) throw Object.assign(new Error(`desc maksimal ${LIMITS.desc_max} karakter.`),{status:400});
@@ -287,7 +303,8 @@ module.exports=async function handler(req,res){
   const action=str(q(req,'a'),80);
 
   if(action==='health'){
-    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true});
+    const shared=sharedIdentity();
+    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,checkout:{mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
   }
   if(action==='webhook'){
     if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -308,7 +325,8 @@ module.exports=async function handler(req,res){
     switch(action){
       case 'init': {
         const c=await fetchCatalog();
-        return ok(res,{store:{...STORE,registration:{required_for_new_users:true,endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false},limits:LIMITS},products:c.products,catalog:c.summary});
+        const shared=sharedIdentity();
+        return ok(res,{store:{...STORE,registration:{required_for_new_users:CHECKOUT_IDENTITY_MODE==='user',endpoint:ORDER.register,sender_types:['whatsapp','telegram'],email_is_sender:false,otp_endpoint_documented:false},checkout:{mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel,shared_sender_masked:shared.configured?maskSender(shared.sender):''},limits:LIMITS},products:c.products,catalog:c.summary});
       }
       case 'catalog_refresh': {
         const c=await fetchCatalog();
@@ -327,8 +345,15 @@ module.exports=async function handler(req,res){
         if(!name) return fail(res,'Nama wajib diisi.');
         if(!validSender(sender,channel)) return fail(res,channel==='telegram'?'Telegram ID tidak valid.':'Nomor WhatsApp tidak valid.');
         if(email&&!emailOk(email)) return fail(res,'Email tidak valid.');
+        if(CHECKOUT_IDENTITY_MODE==='shared'){
+          const shared=sharedIdentity();
+          if(!shared.configured) return fail(res,'Mode shared aktif tetapi XSOFTWARE_SHARED_SENDER belum valid.',503,{reason:'SHARED_SENDER_MISSING'});
+          try{ await fetchUser(shared.sender); }
+          catch(e){ return fail(res,'Sender checkout bersama belum terdaftar/valid di Xoftware.',409,{reason:'SHARED_SENDER_NOT_REGISTERED',provider:e?.upstream||null}); }
+          return ok(res,{state:'shared',user:{id:null,name,sender,saldo:0,level:'SHARED'},channel,sender,email,checkout_mode:'shared'});
+        }
         const prepared=await ensureUser(sender,name);
-        return ok(res,{...prepared,channel,sender,email});
+        return ok(res,{...prepared,channel,sender,email,checkout_mode:'user'});
       }
       case 'checkout_qris': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -338,11 +363,20 @@ module.exports=async function handler(req,res){
         if(!validSender(sender,channel)||!name) return fail(res,'User/sender belum valid.');
         if(!validOrderCode(code)||quantity<1) return fail(res,'SKU atau quantity tidak valid.');
         if(email&&!emailOk(email)) return fail(res,'Email tidak valid.');
-        const prepared=await ensureUser(sender,name);
-        const r=await xoFetch(ORDER.orderQris,{method:'POST',body:{sender,code,quantity}});
+        let xoSender=sender, userState='existing';
+        if(CHECKOUT_IDENTITY_MODE==='shared'){
+          const shared=sharedIdentity();
+          if(!shared.configured) return fail(res,'Mode shared aktif tetapi XSOFTWARE_SHARED_SENDER belum valid.',503,{reason:'SHARED_SENDER_MISSING'});
+          try{ await fetchUser(shared.sender); }
+          catch(e){ return fail(res,'Sender checkout bersama belum terdaftar/valid di Xoftware.',409,{reason:'SHARED_SENDER_NOT_REGISTERED',provider:e?.upstream||null}); }
+          xoSender=shared.sender; userState='shared';
+        }else{
+          const prepared=await ensureUser(sender,name); userState=prepared.state;
+        }
+        const r=await xoFetch(ORDER.orderQris,{method:'POST',body:{sender:xoSender,code,quantity}});
         const transaction=object(r?.data||r), id=str(transaction.transaction_id,160);
         if(!id) return fail(res,'Xoftware tidak mengembalikan transaction_id.',502,r);
-        return ok(res,{transaction,status_token:signStatus(id),buyer_sender:sender,buyer_channel:channel,buyer_email:email,user_state:prepared.state,message:r?.message||''});
+        return ok(res,{transaction,status_token:signStatus(id),buyer_sender:sender,buyer_channel:channel,buyer_email:email,user_state:userState,checkout_mode:CHECKOUT_IDENTITY_MODE,message:r?.message||''});
       }
       case 'deposit': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -351,6 +385,7 @@ module.exports=async function handler(req,res){
         if(!Number.isInteger(amount)||amount<LIMITS.deposit_min||amount>LIMITS.deposit_max) return fail(res,'Nominal deposit harus Rp1.000 sampai Rp1.000.000.');
         if(!validSender(sender,channel)||!name) return fail(res,'User/sender belum valid.');
         if(email&&!emailOk(email)) return fail(res,'Email tidak valid.');
+        if(CHECKOUT_IDENTITY_MODE==='shared') return fail(res,'Isi saldo publik dinonaktifkan pada mode shared karena deposit akan masuk ke akun sender bersama, bukan akun pembeli.',409,{reason:'SHARED_MODE_DEPOSIT_DISABLED'});
         const prepared=await ensureUser(sender,name);
         const r=await xoFetch(ORDER.deposit,{method:'POST',body:{sender,amount}});
         const transaction=object(r?.data||r), id=str(transaction.transaction_id,160);
@@ -365,9 +400,21 @@ module.exports=async function handler(req,res){
         const r=await xoFetch(ORDER.orderStatus,{method:'POST',body:{transaction_id:id}});
         return ok(res,{transaction:r?.data||r,message:r?.message||''});
       }
+      case 'shared_sender_probe': {
+        if(requireAdmin(req,res)) return;
+        const shared=sharedIdentity();
+        if(!shared.configured) return fail(res,'XSOFTWARE_SHARED_SENDER belum dikonfigurasi/valid.',400,{reason:'SHARED_SENDER_MISSING'});
+        try{
+          const user=await fetchUser(shared.sender);
+          return ok(res,{configured:true,valid:true,channel:shared.channel,sender_masked:maskSender(shared.sender),user:publicUser(user)});
+        }catch(e){
+          return fail(res,'Shared sender tidak ditemukan/ditolak Xoftware.',409,{reason:'SHARED_SENDER_NOT_REGISTERED',provider:e?.upstream||null,sender_masked:maskSender(shared.sender)});
+        }
+      }
       case 'admin_ping': {
         if(requireAdmin(req,res)) return;
-        return ok(res,{authenticated:true,build:BUILD_ID,store:STORE.name,base_url:BASE_URL});
+        const shared=sharedIdentity();
+        return ok(res,{authenticated:true,build:BUILD_ID,store:STORE.name,base_url:BASE_URL,checkout_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_sender_masked:shared.configured?maskSender(shared.sender):''});
       }
 
       case 'diag_product': {
