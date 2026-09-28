@@ -1,3 +1,31 @@
+# HARDMAX v19 — Gemini VanzCat
+
+Build: `HARDMAX-v19-GEMINI-VANZCAT`
+
+V19 menghubungkan VanzCat ke Gemini melalui backend serverless. API key tidak pernah masuk ke HTML/JavaScript browser. VanzCat menerima konteks katalog live, dapat memahami pertanyaan lanjutan, memakai status reference yang sudah disanitasi, dan otomatis kembali ke jawaban lokal jika Gemini tidak tersedia.
+
+Tambahkan secret berikut di **Vercel → Project Settings → Environment Variables**, aktifkan untuk Production/Preview/Development sesuai kebutuhan, lalu redeploy:
+
+```text
+GEMINI_API_KEY=YOUR_REAL_GEMINI_API_KEY
+GEMINI_MODEL=gemini-3.5-flash-lite
+GEMINI_TIMEOUT=20000
+GEMINI_MAX_OUTPUT_TOKENS=420
+GEMINI_RATE_LIMIT_PER_MINUTE=12
+```
+
+Dashboard **Admin → VanzCat AI** menampilkan status konfigurasi, model aktif, rate limit, template ENV, guardrail, dan tes respons live. Nilai `GEMINI_API_KEY` sengaja tidak dapat dilihat atau diedit dari browser.
+
+Guardrail VanzCat:
+
+- tidak meminta/menampilkan password, OTP, payment token, atau secret;
+- tidak mengarang harga/stok di luar katalog yang diterima dari server;
+- reference hanya menghasilkan status aman, bukan kredensial hasil pembelian;
+- input, output, timeout, history, dan request per menit dibatasi;
+- respons Gemini dirender sebagai teks aman, bukan HTML mentah.
+
+---
+
 # HARDMAX v18 — Commerce, Order Tracking & SEO
 
 Build: `HARDMAX-v18-COMMERCE-SEO`

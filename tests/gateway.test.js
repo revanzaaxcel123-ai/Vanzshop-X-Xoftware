@@ -59,7 +59,7 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v18-COMMERCE-SEO');
+  assert.equal(r.body.data.build,'HARDMAX-v19-GEMINI-VANZCAT');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});

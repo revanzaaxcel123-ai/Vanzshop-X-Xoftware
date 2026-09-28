@@ -8,12 +8,13 @@ const vercel = JSON.parse(fs.readFileSync(path.join(root,'vercel.json'),'utf8'))
 const js = fs.readFileSync(path.join(root,'assets','xshop.js'),'utf8');
 assert.equal(vercel.cleanUrls, true);
 assert.ok(fs.existsSync(path.join(root,'admin.html')));
-assert.ok(admin.includes('/assets/xshop.js?v=28'));
-assert.ok(js.includes("const BUILD_ID = 'HARDMAX-v18-COMMERCE-SEO';"));
+assert.ok(admin.includes('/assets/xshop.js?v=29'));
+assert.ok(js.includes("const BUILD_ID = 'HARDMAX-v19-GEMINI-VANZCAT';"));
 assert.ok(js.includes("p==='/admin'||p.startsWith('/admin/')"));
 assert.ok(fs.existsSync(path.join(root,'lib','sewapay.js')));
 assert.ok(fs.existsSync(path.join(root,'lib','fulfillment.js')));
 assert.ok(fs.existsSync(path.join(root,'lib','fulfillment-store.js')));
+assert.ok(fs.existsSync(path.join(root,'lib','gemini.js')));
 assert.ok(fs.existsSync(path.join(root,'api','sewapay-webhook.js')));
 assert.ok(fs.existsSync(path.join(root,'robots.txt')));
 assert.ok(fs.existsSync(path.join(root,'sitemap.xml')));

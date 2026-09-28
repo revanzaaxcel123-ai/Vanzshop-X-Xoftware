@@ -4,6 +4,7 @@ const crypto = require('crypto');
 const SewaPay = require('../lib/sewapay');
 const Fulfillment = require('../lib/fulfillment');
 const MetadataStore = require('../lib/fulfillment-store');
+const Gemini = require('../lib/gemini');
 
 // README.md is the source of truth for this gateway.
 const BASE_URL = 'https://backend-s2.xoftware.id';
@@ -21,8 +22,11 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v18-COMMERCE-SEO';
+const BUILD_ID = 'HARDMAX-v19-GEMINI-VANZCAT';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
+const AI_RATE_LIMIT = Math.max(3,Math.min(60,Number(process.env.GEMINI_RATE_LIMIT_PER_MINUTE||12)||12));
+const AI_RATE_WINDOW_MS = 60*1000;
+const aiRateBuckets = new Map();
 
 function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
 function envFont(v, fallback){
@@ -165,6 +169,26 @@ function requireAdmin(req,res){
   const legacy=getHeader(req,'x-admin-password');
   if(!verifyAdminToken(token) && !sameSecret(legacy,ADMIN_PASSWORD)){ fail(res,'Akses admin ditolak.',401); return true; }
   return false;
+}
+function aiClientKey(req){
+  const forwarded=getHeader(req,'x-forwarded-for').split(',')[0].trim();
+  const address=forwarded||getHeader(req,'cf-connecting-ip')||getHeader(req,'x-real-ip')||'unknown';
+  return crypto.createHash('sha256').update(`vanzcat:${address}`).digest('hex').slice(0,24);
+}
+async function enforceAiRate(req){
+  const now=Date.now(),key=aiClientKey(req),current=aiRateBuckets.get(key);
+  if(MetadataStore.ready()){
+    try{
+      const windowId=Math.floor(now/AI_RATE_WINDOW_MS),redisKey=MetadataStore.key(`ai-rate:${key}:${windowId}`),count=Number(await MetadataStore.command(['INCR',redisKey]));
+      if(count===1)await MetadataStore.command(['EXPIRE',redisKey,75]);
+      if(count>AI_RATE_LIMIT)throw Object.assign(new Error('Batas chat VanzCat tercapai. Coba lagi sekitar satu menit.'),{status:429,rate_limited:true});
+      return;
+    }catch(error){if(error?.rate_limited)throw error;}
+  }
+  if(aiRateBuckets.size>2000){for(const [bucket,row] of aiRateBuckets)if(now-row.started_at>AI_RATE_WINDOW_MS)aiRateBuckets.delete(bucket);}
+  if(!current||now-current.started_at>AI_RATE_WINDOW_MS){aiRateBuckets.set(key,{started_at:now,count:1});return;}
+  if(current.count>=AI_RATE_LIMIT)throw Object.assign(new Error('Batas chat VanzCat tercapai. Coba lagi sekitar satu menit.'),{status:429});
+  current.count+=1;
 }
 function signStatus(id){ return crypto.createHmac('sha256',API_KEY).update(`order-status:${String(id)}`).digest('hex'); }
 function verifyStatus(id,token){ return Boolean(API_KEY&&id&&token&&sameSecret(signStatus(id),token)); }
@@ -483,6 +507,34 @@ function maskedBuyer(value){
   const maskedEmail=email.includes('@')?`${email.slice(0,Math.min(2,email.indexOf('@')))}***@${email.split('@').pop()}`:'';
   return {name:str(buyer.name,100),whatsapp:wa?maskSender(wa):'',email:maskedEmail};
 }
+async function safeOrderLookup(rawReference){
+  const reference=str(rawReference,200).toUpperCase();
+  if(!/^VZ-[A-Z0-9-]{8,190}$/.test(reference))throw Object.assign(new Error('Format reference pesanan tidak valid.'),{status:400});
+  if(!Fulfillment.ready())throw Object.assign(new Error('Pusat pesanan belum terhubung ke penyimpanan.'),{status:503});
+  const [order,receipt]=await Promise.all([Fulfillment.getOrder(reference),Fulfillment.getReceipt(reference)]);
+  if(!order&&!receipt)throw Object.assign(new Error('Reference pesanan tidak ditemukan.'),{status:404});
+  let payment=null,paymentStatus='unknown';
+  if(order?.payment_id&&SewaPay.ready()){
+    try{payment=await SewaPay.getStatus({id:order.payment_id,reference});paymentStatus=normalizeSewaStatus(payment?.status);}catch{paymentStatus='unavailable';}
+  }
+  return {
+    reference,
+    payment_id:order?.payment_id||null,
+    product_title:order?.product_title||receipt?.product_title||'',
+    variant_title:order?.variant_title||receipt?.variant_title||'',
+    quantity:Number(order?.quantity??receipt?.quantity??0),
+    amount:Number(payment?.total_payment??payment?.amount??order?.amount??0),
+    method:order?.method||payment?.method||'',
+    payment_status:paymentStatus,
+    fulfillment_status:receipt?.status||(paymentStatus==='success'?'processing':'waiting_payment'),
+    delivered_items:Array.isArray(receipt?.accounts)?receipt.accounts.length:0,
+    has_delivery:Boolean(receipt?.status==='fulfilled'&&Array.isArray(receipt?.accounts)&&receipt.accounts.length),
+    buyer:maskedBuyer(order?.buyer),
+    created_at:order?.created_at||receipt?.created_at||null,
+    fulfilled_at:receipt?.fulfilled_at||null,
+    last_error:receipt?.last_error||null,
+  };
+}
 function paymentReference(){
   return `VZ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 }
@@ -507,7 +559,7 @@ module.exports=async function handler(req,res){
 
   if(action==='health'){
     const shared=sharedIdentity();
-    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,payment:{provider:'sewapay',ready:SewaPay.ready(),base_url:SewaPay.BASE_URL},fulfillment:Fulfillment.status(),checkout:{mode:'sewapay',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
+    return ok(res,{build:BUILD_ID,ready:Boolean(API_KEY),admin_ready:Boolean(ADMIN_PASSWORD),base_url:BASE_URL,catalog_endpoint:ORDER.product,product_management:PRODUCTS,documented_limits:LIMITS,readme_source_of_truth:true,ai:{...Gemini.status(),rate_limit_per_minute:AI_RATE_LIMIT},payment:{provider:'sewapay',ready:SewaPay.ready(),base_url:SewaPay.BASE_URL},fulfillment:Fulfillment.status(),checkout:{mode:'sewapay',legacy_xoftware_mode:CHECKOUT_IDENTITY_MODE,shared_sender_configured:shared.configured,shared_channel:shared.channel}});
   }
   if(action==='webhook'){
     if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -647,32 +699,51 @@ module.exports=async function handler(req,res){
         return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment});
       }
       case 'order_lookup': {
-        const reference=str(q(req,'reference')||bodyOf(req).reference,200).toUpperCase();
-        if(!/^VZ-[A-Z0-9-]{8,190}$/.test(reference)) return fail(res,'Format reference pesanan tidak valid.',400);
-        if(!Fulfillment.ready()) return fail(res,'Pusat pesanan belum terhubung ke penyimpanan.',503);
-        const [order,receipt]=await Promise.all([Fulfillment.getOrder(reference),Fulfillment.getReceipt(reference)]);
-        if(!order&&!receipt) return fail(res,'Reference pesanan tidak ditemukan.',404);
-        let payment=null,paymentStatus='unknown';
-        if(order?.payment_id&&SewaPay.ready()){
-          try{payment=await SewaPay.getStatus({id:order.payment_id,reference});paymentStatus=normalizeSewaStatus(payment?.status);}catch{paymentStatus='unavailable';}
+        return ok(res,await safeOrderLookup(q(req,'reference')||bodyOf(req).reference));
+      }
+      case 'vanzcat_chat': {
+        if(!method(req,'POST'))return fail(res,'Method tidak diizinkan.',405);
+        await enforceAiRate(req);
+        const b=bodyOf(req),message=str(b.message,700),history=Array.isArray(b.history)?b.history.slice(-8):[];
+        if(!message)return fail(res,'Pesan VanzCat tidak boleh kosong.',400);
+        const match=message.toUpperCase().match(/VZ-[A-Z0-9-]{8,190}/);
+        let orderContext=null;
+        if(match){
+          try{
+            const order=await safeOrderLookup(match[0]);
+            orderContext={
+              reference:order.reference,
+              product_title:order.product_title,
+              variant_title:order.variant_title,
+              quantity:order.quantity,
+              amount:order.amount,
+              method:order.method,
+              payment_status:order.payment_status,
+              fulfillment_status:order.fulfillment_status,
+              delivered_items:order.delivered_items,
+              has_delivery:order.has_delivery,
+              created_at:order.created_at,
+              fulfilled_at:order.fulfilled_at,
+            };
+          }catch(error){orderContext={reference:match[0],lookup_error:String(error?.message||'Reference tidak ditemukan.')};}
         }
-        return ok(res,{
-          reference,
-          payment_id:order?.payment_id||null,
-          product_title:order?.product_title||receipt?.product_title||'',
-          variant_title:order?.variant_title||receipt?.variant_title||'',
-          quantity:Number(order?.quantity??receipt?.quantity??0),
-          amount:Number(payment?.total_payment??payment?.amount??order?.amount??0),
-          method:order?.method||payment?.method||'',
-          payment_status:paymentStatus,
-          fulfillment_status:receipt?.status||(paymentStatus==='success'?'processing':'waiting_payment'),
-          delivered_items:Array.isArray(receipt?.accounts)?receipt.accounts.length:0,
-          has_delivery:Boolean(receipt?.status==='fulfilled'&&Array.isArray(receipt?.accounts)&&receipt.accounts.length),
-          buyer:maskedBuyer(order?.buyer),
-          created_at:order?.created_at||receipt?.created_at||null,
-          fulfilled_at:receipt?.fulfilled_at||null,
-          last_error:receipt?.last_error||null,
-        });
+        let products=[];
+        try{products=(await fetchCatalog()).products;}catch{}
+        const answer=await Gemini.generate({message,history,products,orderContext,storeName:STORE.name});
+        return ok(res,{answer:answer.text,provider:'gemini',model:answer.model,finish_reason:answer.finish_reason||null});
+      }
+      case 'admin_ai_status': {
+        if(requireAdmin(req,res))return;
+        return ok(res,{...Gemini.status(),rate_limit_per_minute:AI_RATE_LIMIT,public_endpoint:'vanzcat_chat',key_exposed:false});
+      }
+      case 'admin_ai_test': {
+        if(requireAdmin(req,res))return;
+        if(!method(req,'POST'))return fail(res,'Method tidak diizinkan.',405);
+        const message=str(bodyOf(req).message||'Perkenalkan dirimu sebagai VanzCat dalam dua kalimat.',700);
+        let products=[];
+        try{products=(await fetchCatalog()).products;}catch{}
+        const answer=await Gemini.generate({message,history:[],products,storeName:STORE.name});
+        return ok(res,{answer:answer.text,provider:'gemini',model:answer.model,usage:answer.usage||null,finish_reason:answer.finish_reason||null});
       }
       case 'payment_cancel': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);

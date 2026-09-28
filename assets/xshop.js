@@ -4,7 +4,7 @@
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const app = $('#app');
-const BUILD_ID = 'HARDMAX-v18-COMMERCE-SEO';
+const BUILD_ID = 'HARDMAX-v19-GEMINI-VANZCAT';
 window.__VANZSHOP_BUILD__ = BUILD_ID;
 const money = n => new Intl.NumberFormat('id-ID',{style:'currency',currency:'IDR',maximumFractionDigits:0}).format(Number(n)||0);
 const esc = v => String(v ?? '').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
@@ -82,7 +82,7 @@ const ADMIN_THEMES = Object.freeze({
 });
 const state = {
   owner:[], source:'all', category:'all', q:'', sort:'store', catalogSummary:null,
-  product:null, variantId:null, qty:1, busy:false, catalogLoaded:false,
+  product:null, variantId:null, qty:1, busy:false, catalogLoaded:false, catHistory:[],
   store: typeof structuredClone === 'function' ? structuredClone(DEFAULT_STORE) : JSON.parse(JSON.stringify(DEFAULT_STORE))
 };
 let timer = null;
@@ -435,7 +435,7 @@ function bottomNavigation(active){
   return `<nav class="bottom-nav" aria-label="Navigasi utama"><a class="${active==='home'||active==='catalog'?'active':''}" href="#/"><span class="bottom-icon">${icon('<path d="m3 11 9-7 9 7v9h-6v-6H9v6H3z"/>')}</span><b>Beranda</b></a><a class="${active==='products'?'active':''}" href="#/produk"><span class="bottom-icon">${icon('<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>')}</span><b>Produk</b></a><a class="${active==='cart'?'active':''}" href="#/tas"><span class="bottom-icon">${icon('<path d="M5 8h14l-1 12H6z"/><path d="M9 9V6a3 3 0 0 1 6 0v3"/>')}</span><b>Tas</b>${count?`<em>${count>99?'99+':count}</em>`:''}</a><a class="${active==='orders'?'active':''}" href="#/pesanan"><span class="bottom-icon">${icon('<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>')}</span><b>Pesanan</b></a><a class="${active==='profile'?'active':''}" href="#/profil"><span class="bottom-icon">${icon('<circle cx="12" cy="8" r="4"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0"/>')}</span><b>Profil</b></a></nav>`;
 }
 function assistantMarkup(){
-  return `<div class="vanzcat" data-vanzcat><button class="vanzcat-launch" type="button" aria-label="Buka VanzCat"><span class="cat-avatar" aria-hidden="true"><i class="cat-ear left"></i><i class="cat-ear right"></i><i class="cat-face"><b></b><b></b><em></em></i><i class="cat-tail"></i></span><span class="vanzcat-dot"></span></button><section class="vanzcat-panel" hidden><header><div><span class="cat-mini">ฅ</span><span><b>VanzCat</b><small>Asisten otomatis VanzShop</small></span></div><button type="button" data-cat-close aria-label="Tutup asisten">×</button></header><div class="vanzcat-messages" aria-live="polite"><div class="cat-message bot">Hai! Aku bisa bantu cari produk, menjelaskan checkout, atau melacak reference <code>VZ-...</code>.</div></div><div class="vanzcat-suggestions"><button type="button">Cari ChatGPT</button><button type="button">Cara cek pesanan</button><button type="button">Info garansi</button></div><form class="vanzcat-form"><input autocomplete="off" maxlength="220" placeholder="Tanya produk atau tempel reference..."><button type="submit" aria-label="Kirim">↑</button></form><small class="vanzcat-disclaimer">Jawaban otomatis. Detail akun hanya ditampilkan di halaman Pesanan.</small></section></div>`;
+  return `<div class="vanzcat" data-vanzcat><button class="vanzcat-launch" type="button" aria-label="Buka VanzCat"><span class="cat-avatar" aria-hidden="true"><i class="cat-ear left"></i><i class="cat-ear right"></i><i class="cat-face"><b></b><b></b><em></em></i><i class="cat-tail"></i></span><span class="vanzcat-dot"></span></button><section class="vanzcat-panel" hidden><header><div><span class="cat-mini">ฅ</span><span><b>VanzCat</b><small>Asisten AI VanzShop · Gemini</small></span></div><button type="button" data-cat-close aria-label="Tutup asisten">×</button></header><div class="vanzcat-messages" aria-live="polite"><div class="cat-message bot"><span class="cat-provider local">VANZCAT</span>Hai! Aku bisa bantu memilih produk, menjelaskan checkout dan garansi, atau melacak reference <code>VZ-...</code>.</div></div><div class="vanzcat-suggestions"><button type="button">Rekomendasi produk AI</button><button type="button">Cara cek pesanan</button><button type="button">Info garansi</button></div><form class="vanzcat-form"><input autocomplete="off" maxlength="700" placeholder="Tanya produk atau tempel reference..."><button type="submit" aria-label="Kirim">↑</button></form><small class="vanzcat-disclaimer">Gemini diproses aman lewat server. Jangan kirim password, OTP, atau payment token.</small></section></div>`;
 }
 
 function shell(content,active='catalog'){
@@ -503,21 +503,31 @@ function bindAssistant(){
   const root=$('[data-vanzcat]');if(!root)return;
   const panel=$('.vanzcat-panel',root),launch=$('.vanzcat-launch',root),form=$('.vanzcat-form',root),input=$('input',form),messages=$('.vanzcat-messages',root);
   const add=(role,html)=>{const row=document.createElement('div');row.className=`cat-message ${role}`;row.innerHTML=html;messages.appendChild(row);messages.scrollTop=messages.scrollHeight;};
-  const answer=async raw=>{
-    const q=String(raw||'').trim(),lower=q.toLowerCase();if(!q)return;
-    add('user',esc(q));add('bot','<span class="cat-thinking">Mengecek</span>');const thinking=messages.lastElementChild;
-    let html='';
-    if(looksLikeReference(q)){
-      try{const data=await api('order_lookup',null,{reference:q.toUpperCase()}),status=data.payment_status==='success'?'pembayaran berhasil':data.payment_status==='pending'?'menunggu pembayaran':data.payment_status==='fail'?'pembayaran gagal':data.payment_status,fulfill=data.fulfillment_status==='fulfilled'?'produk sudah siap':data.fulfillment_status==='waiting_stock'?'menunggu stok':'produk sedang diproses';html=`Reference <b>${esc(data.reference)}</b> ditemukan: ${esc(data.product_title||'produk digital')}, ${esc(status)} dan ${esc(fulfill)}. <a href="#/pesanan/${encodeURIComponent(data.reference)}">Buka pusat pesanan →</a>`;}catch(e){html=`Aku belum menemukan reference itu. Periksa penulisannya atau <a target="_blank" rel="noopener" href="https://wa.me/${esc(phoneNormalize(state.store.support?.whatsapp||'0895415204928'))}">hubungi admin</a>.`;}
+  const localAnswer=async q=>{
+    const lower=q.toLowerCase();let html='';
+    const reference=q.toUpperCase().match(/VZ-[A-Z0-9-]{8,190}/)?.[0]||'';
+    if(reference){
+      try{const data=await api('order_lookup',null,{reference}),status=data.payment_status==='success'?'pembayaran berhasil':data.payment_status==='pending'?'menunggu pembayaran':data.payment_status==='fail'?'pembayaran gagal':data.payment_status,fulfill=data.fulfillment_status==='fulfilled'?'produk sudah siap':data.fulfillment_status==='waiting_stock'?'menunggu stok':'produk sedang diproses';html=`Reference <b>${esc(data.reference)}</b> ditemukan: ${esc(data.product_title||'produk digital')}, ${esc(status)} dan ${esc(fulfill)}. <a href="#/pesanan/${encodeURIComponent(data.reference)}">Buka pusat pesanan →</a>`;}catch{html=`Aku belum menemukan reference itu. Periksa penulisannya atau <a target="_blank" rel="noopener" href="https://wa.me/${esc(phoneNormalize(state.store.support?.whatsapp||'0895415204928'))}">hubungi admin</a>.`;}
     }else if(/garansi|refund|ganti akun/.test(lower))html='Ketentuan berbeda untuk setiap produk. Baca <a target="_blank" rel="noopener" href="https://ketentuan-garansi.vanzshop.com">Ketentuan Garansi resmi</a>, lalu simpan reference pesananmu.';
-    else if(/pesanan|status|reference|belum masuk|bermasalah/.test(lower))html='Buka <a href="#/pesanan">Pusat Pesanan</a>, tempel reference <b>VZ-...</b>, lalu tekan Lacak. Jika produk sudah terkirim, detail aman hanya muncul pada perangkat checkout.';
+    else if(/pesanan|status|reference|belum masuk|bermasalah/.test(lower))html='Buka <a href="#/pesanan">Pusat Pesanan</a>, tempel reference <b>VZ-...</b>, lalu tekan Lacak. Detail aman hanya muncul pada perangkat checkout.';
     else if(/bayar|qris|checkout/.test(lower))html='Pilih varian dan jumlah, lalu bayar lewat QRIS. Sistem baru memproses produk setelah gateway mengonfirmasi pembayaran <b>berhasil</b>—bukan berdasarkan timer.';
     else if(/reseller|jualan/.test(lower))html='Program reseller punya katalog dan dukungan komunitas. <a target="_blank" rel="noopener" href="https://join-reseller.vanzshop.com/">Lihat Join Reseller →</a>';
-    else{
-      const words=lower.split(/\s+/).filter(word=>word.length>2),matches=allProducts().filter(p=>productPrice(p)>0&&words.some(word=>`${p.title} ${p.code} ${p.description||''}`.toLowerCase().includes(word))).slice(0,3);
-      html=matches.length?`Aku menemukan ${matches.map(p=>`<a href="#/produk/${esc(p.source||'owner')}/${encodeURIComponent(p.id??p.code)}"><b>${esc(p.title)}</b> (${money(productPrice(p))})</a>`).join(', ')}.`:'Aku belum yakin dengan pertanyaan itu. Coba tulis nama produk, “cara cek pesanan”, “info garansi”, atau tempel reference <b>VZ-...</b>.';
+    else{const words=lower.split(/\s+/).filter(word=>word.length>2),matches=allProducts().filter(p=>productPrice(p)>0&&words.some(word=>`${p.title} ${p.code} ${p.description||''}`.toLowerCase().includes(word))).slice(0,3);html=matches.length?`Aku menemukan ${matches.map(p=>`<a href="#/produk/${esc(p.source||'owner')}/${encodeURIComponent(p.id??p.code)}"><b>${esc(p.title)}</b> (${money(productPrice(p))})</a>`).join(', ')}.`:'Aku belum yakin. Coba tulis nama produk, “cara cek pesanan”, “info garansi”, atau tempel reference <b>VZ-...</b>.';}
+    return `<span class="cat-provider local">MODE AMAN</span>${html}`;
+  };
+  let sending=false;
+  const answer=async raw=>{
+    const q=String(raw||'').trim().slice(0,700);if(!q||sending)return;
+    sending=true;const previous=state.catHistory.slice(-8);add('user',esc(q));add('bot','<span class="cat-thinking">Gemini sedang berpikir</span>');const thinking=messages.lastElementChild;
+    let html='',plain='';
+    try{
+      const data=await api('vanzcat_chat',{message:q,history:previous});plain=String(data?.answer||'').trim();
+      if(!plain)throw new Error('Jawaban AI kosong.');
+      html=`<span class="cat-provider gemini">GEMINI · ${esc(data.model||'AI')}</span>${esc(plain).replace(/\n/g,'<br>')}`;
+    }catch{
+      html=await localAnswer(q);
     }
-    thinking.remove();add('bot',html);
+    thinking.remove();add('bot',html);const helper=document.createElement('div');helper.innerHTML=html;plain=plain||helper.textContent.trim();state.catHistory=[...previous,{role:'user',text:q},{role:'model',text:plain}].slice(-10);sending=false;
   };
   launch.onclick=()=>{panel.hidden=!panel.hidden;if(!panel.hidden)setTimeout(()=>input.focus(),80);};$('[data-cat-close]',root).onclick=()=>{panel.hidden=true;};
   $$('.vanzcat-suggestions button',root).forEach(button=>button.onclick=()=>answer(button.textContent));
@@ -708,7 +718,7 @@ function adminTabs(active){
     ['Ringkasan', [['overview','Dashboard'],['orders','Lacak Pesanan'],['recap','Rekap Produk']]],
     ['Produk', [['products','Kelola Produk'],['product-detail','Detail Produk'],['variations','Variasi'],['forms','Format Stok']]],
     ['Stok', [['stock','Stok Masuk & Aktif'],['fulfillment','Stok Keluar']]],
-    ['Tampilan', [['appearance','Tema & Branding']]],
+    ['Tampilan', [['appearance','Tema & Branding'],['ai','VanzCat AI']]],
   ];
   return `<aside class="admin-sidebar">${groups.map(([title,items])=>`<div class="admin-nav-group"><b>${title}</b>${items.map(([id,label])=>`<a class="${active===id?'active':''}" href="#/admin/${id}">${label}</a>`).join('')}</div>`).join('')}</aside>`;
 }
@@ -718,7 +728,7 @@ async function renderAdmin(section='overview'){
   $('#adminLogout').onclick=()=>{sessionStorage.removeItem('vanz_admin_token');renderAdminLogin();};
   try{await adminApi('admin_ping');}catch(e){sessionStorage.removeItem('vanz_admin_token');toast(e.message,true);return renderAdminLogin();}
   const routes={
-    overview:adminOverview,orders:adminOrderTracking,recap:adminProductRecap,products:adminProducts,'product-detail':adminProductDetail,variations:adminVariations,
+    overview:adminOverview,orders:adminOrderTracking,recap:adminProductRecap,products:adminProducts,'product-detail':adminProductDetail,variations:adminVariations,ai:adminVanzCatAI,
     stock:adminStock,fulfillment:adminFulfillment,forms:adminForms,appearance:adminAppearance,
   };
   return (routes[section]||adminOverview)();
@@ -747,6 +757,16 @@ async function adminOverview(){
   const box=$('#adminContent');
   const products=allProducts(),known=products.filter(p=>productStock(p)!=null),stock=known.reduce((n,p)=>n+Math.max(0,Number(productStock(p))||0),0),variations=products.reduce((n,p)=>n+variants(p).length,0),low=products.filter(p=>productStock(p)!=null&&productStock(p)<=5).sort((a,b)=>productStock(a)-productStock(b)).slice(0,8);
   box.innerHTML=`<div class="admin-grid inventory-dashboard"><section class="admin-panel wide admin-welcome"><div><span class="section-kicker">Ringkasan toko</span><h2>Semua yang penting, tanpa menu teknis yang ramai.</h2><p class="muted">Pantau katalog dan stok, lalu masuk langsung ke pekerjaan yang ingin kamu selesaikan.</p></div><a class="btn btn-primary" href="#/admin/products">Tambah produk</a></section><section class="admin-panel wide"><div class="metric-grid"><div class="metric-card"><small>Produk aktif</small><strong>${products.length}</strong></div><div class="metric-card"><small>Total variasi</small><strong>${variations}</strong></div><div class="metric-card"><small>Stok terhitung</small><strong>${stock}</strong></div><div class="metric-card"><small>Stok menipis</small><strong>${low.length}</strong></div></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Aksi cepat</h2><p class="muted">Jalur singkat untuk pekerjaan harian toko.</p></div></div><div class="quick-action-grid"><a href="#/admin/products"><span>01</span><b>Kelola produk</b><small>Buat, edit, tampilkan, atau hapus produk.</small></a><a href="#/admin/variations"><span>02</span><b>Atur variasi</b><small>Kelola paket, durasi, harga, dan SKU.</small></a><a href="#/admin/stock"><span>03</span><b>Masukkan stok</b><small>Tambah akun dan lihat stok aktif.</small></a><a href="#/admin/fulfillment"><span>04</span><b>Lihat stok keluar</b><small>Pantau akun yang sudah dikirim ke pembeli.</small></a></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Perlu perhatian</h2><p class="muted">Produk dengan stok lima atau kurang.</p></div><a class="btn btn-sm" href="#/admin/stock">Kelola stok</a></div>${low.length?`<div class="low-stock-list">${low.map(p=>`<div><span><b>${esc(p.title)}</b><small>${esc(p.code||'Tanpa SKU')}</small></span><strong class="${productStock(p)===0?'out':''}">${productStock(p)===0?'Habis':`${productStock(p)} tersisa`}</strong></div>`).join('')}</div>`:'<div class="status-card good"><b>Stok aman</b><span>Tidak ada produk yang perlu ditambah saat ini.</span></div>'}</section></div>`;
+}
+
+async function adminVanzCatAI(){
+  const box=$('#adminContent');box.innerHTML='<div class="loading-card"><div class="loader"></div><span>Memeriksa koneksi Gemini...</span></div>';
+  try{
+    const ai=await adminApi('admin_ai_status'),configured=Boolean(ai.configured),envTemplate=['GEMINI_API_KEY=PASTE_KEY_DI_VERCEL','GEMINI_MODEL='+String(ai.model||'gemini-3.5-flash-lite'),'GEMINI_TIMEOUT=20000','GEMINI_MAX_OUTPUT_TOKENS=420','GEMINI_RATE_LIMIT_PER_MINUTE=12'].join('\n');
+    box.innerHTML=`<div class="admin-grid ai-control"><section class="admin-panel wide ai-hero"><div><span class="section-kicker">VANZCAT INTELLIGENCE</span><h2>Gemini Control Center</h2><p class="muted">VanzCat memakai Gemini melalui backend VanzShop. API key tidak pernah dikirim ke browser atau pengunjung.</p></div><span class="ai-live ${configured?'good':'bad'}"><i></i>${configured?'Gemini terhubung':'Secret belum dipasang'}</span></section><section class="admin-panel"><div class="panel-title"><div><h2>Status runtime</h2><p class="muted">Konfigurasi aktif pada deployment ini.</p></div></div><div class="ai-status-list"><div><span>Provider</span><b>Google Gemini</b></div><div><span>Model utama</span><code>${esc(ai.model||'—')}</code></div><div><span>API key</span><b>${configured?'Server-side · terlindungi':'Missing'}</b></div><div><span>Rate limit publik</span><b>${esc(ai.rate_limit_per_minute||12)} chat / menit</b></div><div><span>Timeout</span><b>${esc(Math.round(Number(ai.timeout_ms||0)/1000))} detik</b></div></div></section><section class="admin-panel"><div class="panel-title"><div><h2>Secret Vercel</h2><p class="muted">Pasang sebagai Environment Variable, lalu redeploy.</p></div></div><div class="env-box ai-env"><pre>${esc(envTemplate)}</pre><button id="aiCopyEnv" class="btn">Salin template ENV</button></div><div class="status-card ${configured?'good':'warn'}"><b>${configured?'Key sudah terdeteksi':'GEMINI_API_KEY belum terdeteksi'}</b><span>Nilai secret sengaja tidak dapat dibaca dari dashboard.</span></div></section><section class="admin-panel wide"><div class="panel-title"><div><h2>Tes jawaban VanzCat</h2><p class="muted">Tes ini memakai katalog live yang sama dengan storefront.</p></div><span class="build-chip">${BUILD_ID}</span></div><div class="ai-test-grid"><label class="form-field"><span>Pertanyaan tes</span><textarea id="aiTestPrompt" class="input" rows="4" maxlength="700">Rekomendasikan satu produk AI dari katalog VanzShop dan jelaskan cara checkout dengan aman.</textarea></label><div id="aiTestOutput" class="ai-test-output"><span>Jawaban Gemini akan tampil di sini.</span></div></div><div class="button-row"><button id="aiTestBtn" class="btn btn-primary" ${configured?'':'disabled'}>Tes Gemini sekarang</button><a class="btn" href="/#/">Buka VanzCat</a></div></section><section class="admin-panel wide"><h2>Guardrail aktif</h2><div class="checklist ai-checklist"><span>✓ Key hanya berada di server</span><span>✓ Katalog live menjadi konteks jawaban</span><span>✓ Reference dilacak tanpa membocorkan kredensial</span><span>✓ Password, OTP, dan payment token dilarang</span><span>✓ Jawaban lokal aktif saat Gemini gagal</span><span>✓ Input dan output dibatasi untuk kontrol biaya</span></div></section></div>`;
+    $('#aiCopyEnv').onclick=()=>navigator.clipboard.writeText(envTemplate).then(()=>toast('Template ENV disalin.')).catch(()=>toast('Clipboard gagal.',true));
+    const test=$('#aiTestBtn');if(test)test.onclick=async()=>{const output=$('#aiTestOutput'),message=$('#aiTestPrompt').value.trim();if(!message){toast('Pertanyaan tes wajib diisi.',true);return;}test.disabled=true;test.textContent='Menghubungi Gemini...';output.innerHTML='<div class="loading-card"><div class="loader"></div><span>Gemini sedang menyusun jawaban...</span></div>';try{const result=await adminApi('admin_ai_test',{method:'POST',body:{message}}),usage=result.usage||{};output.innerHTML=`<span class="cat-provider gemini">GEMINI · ${esc(result.model||ai.model)}</span><p>${esc(result.answer||'').replace(/\n/g,'<br>')}</p><small>Input ${esc(usage.promptTokenCount??'—')} · Output ${esc(usage.candidatesTokenCount??'—')} token</small>`;}catch(error){output.innerHTML=`<div class="status-card bad"><b>Tes Gemini gagal</b><span>${esc(error.message)}</span></div>`;}finally{test.disabled=false;test.textContent='Tes Gemini sekarang';}};
+  }catch(error){box.innerHTML=`<div class="status-card bad"><b>Status Gemini gagal dimuat</b><span>${esc(error.message)}</span></div>`;}
 }
 
 async function adminProductRecap(){
@@ -1084,6 +1104,11 @@ function adminEnvironment(){
   const lines=[
     'XSOFTWARE_API_KEY=ISI_DI_VERCEL_JANGAN_DI_GITHUB',
     'ADMIN_PASSWORD=ISI_PASSWORD_ADMIN',
+    'GEMINI_API_KEY=ISI_DI_VERCEL_JANGAN_DI_GITHUB',
+    'GEMINI_MODEL=gemini-3.5-flash-lite',
+    'GEMINI_TIMEOUT=20000',
+    'GEMINI_MAX_OUTPUT_TOKENS=420',
+    'GEMINI_RATE_LIMIT_PER_MINUTE=12',
     `STORE_NAME=${state.store.name||'VanzShop.com'}`,
     `STORE_TAGLINE=${state.store.tagline||''}`,
     `STORE_WHATSAPP=${s.whatsapp||''}`,
@@ -1147,7 +1172,7 @@ function adminEnvironment(){
     'STORE_FONT_BODY=Plus Jakarta Sans',
     'STORE_FONT_DISPLAY=Archivo'
   ];const txt=lines.join('\n');
-  $('#adminContent').innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Vercel Environment helper</h2><div class="diag-warning">Jangan commit API key/password asli ke GitHub. Isi secret langsung di Vercel Environment Variables.</div><div class="env-box"><pre>${esc(txt)}</pre><button id="aeCopy" class="btn btn-primary">Salin template ENV</button></div></section><section class="admin-panel"><h2>Wajib</h2><div class="kv"><span>XSOFTWARE_API_KEY</span><b>secret</b></div><div class="kv"><span>ADMIN_PASSWORD</span><b>secret</b></div></section><section class="admin-panel"><h2>Opsional</h2><p class="muted">STORE_* mengatur tampilan/kontak global. XSOFTWARE_TIMEOUT mengatur timeout request provider.</p></section></div>`;
+  $('#adminContent').innerHTML=`<div class="admin-grid"><section class="admin-panel wide"><h2>Vercel Environment helper</h2><div class="diag-warning">Jangan commit API key/password asli ke GitHub. Isi secret langsung di Vercel Environment Variables.</div><div class="env-box"><pre>${esc(txt)}</pre><button id="aeCopy" class="btn btn-primary">Salin template ENV</button></div></section><section class="admin-panel"><h2>Wajib</h2><div class="kv"><span>XSOFTWARE_API_KEY</span><b>secret</b></div><div class="kv"><span>ADMIN_PASSWORD</span><b>secret</b></div><div class="kv"><span>GEMINI_API_KEY</span><b>secret VanzCat</b></div></section><section class="admin-panel"><h2>Opsional</h2><p class="muted">STORE_* mengatur tampilan/kontak global. GEMINI_* mengatur model, timeout, output, dan rate limit VanzCat.</p></section></div>`;
   $('#aeCopy').onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('Template ENV disalin.');}catch{toast('Clipboard gagal.',true);}};
 }
 
