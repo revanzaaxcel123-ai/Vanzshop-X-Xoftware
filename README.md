@@ -1,8 +1,24 @@
-# HARDMAX v17 — Reseller Storefront
+# HARDMAX v18 — Commerce, Order Tracking & SEO
 
-Build: `HARDMAX-v17-RESELLER-STOREFRONT`
+Build: `HARDMAX-v18-COMMERCE-SEO`
 
-V17 mempertahankan Catalog Studio V16 dan merombak storefront mengikuti visual Join Reseller: dark/morning theme yang konsisten, headline premium berkilau halus, banner langsung di atas katalog, global search, branding Join Reseller, serta halaman pesanan yang menjelaskan produk dan detail yang diterima. Fitur publik Isi Saldo dan registrasi Akun dihapus; checkout langsung memakai Sewa Pay.
+V18 mematangkan storefront VanzShop menjadi alur jual-beli yang utuh:
+
+- state machine pembayaran yang hanya menampilkan QR ketika status server benar-benar `PENDING`;
+- status sukses tidak pernah dipicu timer—QR ditutup setelah Sewa Pay mengonfirmasi pembayaran;
+- global reference search lintas perangkat dengan hasil aman tanpa membocorkan akun/password;
+- **Admin → Lacak Pesanan** untuk mencari reference, payment ID, produk, atau kontak pembeli;
+- tas belanja lokal, profil pembeli opsional, guest checkout, dan navigasi bawah mobile;
+- VanzCat untuk pencarian produk, bantuan checkout/garansi, dan pelacakan reference;
+- metadata SEO, canonical, Open Graph, JSON-LD, `robots.txt`, `sitemap.xml`, dan manifest;
+- blok bawah katalog diganti menjadi ekosistem resmi VanzShop dan tautan bantuan;
+- dashboard admin tidak ditampilkan di navigasi publik dan tetap diakses lewat `/admin`.
+
+Detail akun hasil pembelian tetap hanya dapat dibuka dari perangkat yang memiliki signed payment token. Endpoint publik `order_lookup` hanya mengembalikan status transaksi dan metadata yang sudah disanitasi.
+
+## HARDMAX v17 — Reseller Storefront
+
+V17 merombak storefront mengikuti visual Join Reseller: dark/morning theme yang konsisten, headline premium berkilau halus, banner langsung di atas katalog, global search, branding Join Reseller, serta halaman pesanan yang menjelaskan produk dan detail yang diterima. Fitur publik Isi Saldo dan registrasi Akun dihapus; checkout langsung memakai Sewa Pay.
 
 Gambar manual disimpan sebagai metadata katalog di Redis/Upstash yang sama dengan fulfillment. Upload browser dioptimasi menjadi JPG maksimal 900px sebelum dikirim. Jika provider mengirim `thumbnail`, `image`, `cover`, atau `media`, gambar tersebut dipakai otomatis; jika tidak ada, storefront memakai asset brand lokal.
 

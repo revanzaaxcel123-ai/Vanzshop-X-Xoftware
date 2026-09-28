@@ -30,11 +30,12 @@ for (let i = 1; i <= 5; i += 1) {
 }
 assert.match(js, /campaign-slider-track/);
 assert.match(js, /function storefrontSections\(/);
-assert.match(js, /id="kenapa-vanzshop"/);
-assert.match(js, /id="cara-belanja"/);
-assert.match(js, /id="faq"/);
+assert.match(js, /id="vanzshop-seo"/);
+assert.match(js, /direct-order\.vanzshop\.com/);
+assert.match(js, /ketentuan-garansi\.vanzshop\.com/);
 assert.match(js, /id="join-reseller"/);
 assert.match(css, /HARDMAX v17 — Join Reseller storefront system/);
+assert.match(css, /HARDMAX v18 — commerce/);
 assert.match(css, /--join-name/);
 assert.match(api, /STORE_RESELLER_GROUP/);
 const adminNavigation = js.slice(js.indexOf('function adminTabs'), js.indexOf('async function renderAdmin'));

@@ -84,7 +84,7 @@ function invoke({method='GET',query={},body,headers={}}={}){return new Promise((
   assert.equal(methodsCall.headers['X-PG-Signature'],expectedGet);
 
   calls.length=0;
-  let r=await invoke({method:'POST',query:{a:'payment_create'},body:{product_id:11,variation_id:111,code:'NFLX-1M',quantity:1,method:'QRIS'}});
+  let r=await invoke({method:'POST',query:{a:'payment_create'},body:{product_id:11,variation_id:111,code:'NFLX-1M',quantity:1,method:'QRIS',buyer:{name:'Vanz Buyer',whatsapp:'081234567890',email:'buyer@vanz.test'}}});
   assert.equal(r.status,201);
   assert.equal(r.body.data.payment.id,'tx_test_1');
   assert.equal(r.body.data.order.unit_price,25000);
@@ -120,6 +120,14 @@ function invoke({method='GET',query={},body,headers={}}={}){return new Promise((
   assert.equal(r.body.data.fulfillment.status,'fulfilled');
   assert.equal(r.body.data.fulfillment.accounts[0].value.Password,'pw123');
   assert.equal(calls.filter(x=>x.host==='backend-s2.xoftware.id'&&x.method==='DELETE').length,0,'same payment must not delete another stock');
+
+  r=await invoke({query:{a:'order_lookup',reference}});
+  assert.equal(r.status,200);
+  assert.equal(r.body.data.reference,reference);
+  assert.equal(r.body.data.fulfillment_status,'fulfilled');
+  assert.equal(r.body.data.has_delivery,true);
+  assert.equal(r.body.data.buyer.name,'Vanz Buyer');
+  assert.equal(Object.prototype.hasOwnProperty.call(r.body.data,'accounts'),false,'public reference lookup must not leak credentials');
 
   r=await invoke({method:'POST',query:{a:'payment_status'},body:{id:'tx_wrong',reference,payment_token:token}});
   assert.equal(r.status,401);

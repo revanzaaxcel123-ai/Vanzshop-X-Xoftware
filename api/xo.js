@@ -21,7 +21,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v17-RESELLER-STOREFRONT';
+const BUILD_ID = 'HARDMAX-v18-COMMERCE-SEO';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
@@ -470,6 +470,19 @@ function normalizeSewaStatus(status){
   if(s==='CANCELLED') return 'cancelled';
   return 'pending';
 }
+function checkoutBuyer(value){
+  const buyer=object(value),name=str(buyer.name,100),rawWhatsapp=normalizeWhatsApp(buyer.whatsapp),email=str(buyer.email,160).toLowerCase();
+  return {
+    name,
+    whatsapp:rawWhatsapp&&/^\d{7,20}$/.test(rawWhatsapp)?rawWhatsapp:'',
+    email:email&&emailOk(email)?email:'',
+  };
+}
+function maskedBuyer(value){
+  const buyer=object(value),wa=String(buyer.whatsapp||''),email=String(buyer.email||'');
+  const maskedEmail=email.includes('@')?`${email.slice(0,Math.min(2,email.indexOf('@')))}***@${email.split('@').pop()}`:'';
+  return {name:str(buyer.name,100),whatsapp:wa?maskSender(wa):'',email:maskedEmail};
+}
 function paymentReference(){
   return `VZ-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
 }
@@ -553,7 +566,7 @@ module.exports=async function handler(req,res){
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
         if(!SewaPay.ready()) return fail(res,'Sewa Pay belum dikonfigurasi di Vercel.',503);
         if(!Fulfillment.ready()) return fail(res,'Auto-fulfillment belum siap. Hubungkan Redis/Upstash dulu agar payment sukses dapat claim stok tepat satu kali.',503,Fulfillment.status());
-        const b=bodyOf(req), quantity=int(b.quantity,0), paymentMethod=str(b.method||'QRIS',20).toUpperCase();
+        const b=bodyOf(req), quantity=int(b.quantity,0), paymentMethod=str(b.method||'QRIS',20).toUpperCase(),buyer=checkoutBuyer(b.buyer);
         if(!['QRIS','BINANCE'].includes(paymentMethod)) return fail(res,'Metode payment harus QRIS atau BINANCE.');
         if(quantity<1||quantity>20) return fail(res,'quantity wajib 1-20.');
         const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
@@ -580,7 +593,7 @@ module.exports=async function handler(req,res){
         const orderRecord={
           reference,payment_id:paymentId,product_id:sel.product.id,variation_id:sel.variation?.id??null,code:sel.sku,
           quantity,amount,method:paymentMethod,product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,
-          stock_at_checkout:sel.stock,reserved_stock_record_ids:held.map(x=>x.record_id),created_at:new Date().toISOString(),
+          stock_at_checkout:sel.stock,reserved_stock_record_ids:held.map(x=>x.record_id),buyer,created_at:new Date().toISOString(),
         };
         try{ await Fulfillment.saveOrder(orderRecord); }
         catch(e){
@@ -632,6 +645,34 @@ module.exports=async function handler(req,res){
           }
         }
         return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment});
+      }
+      case 'order_lookup': {
+        const reference=str(q(req,'reference')||bodyOf(req).reference,200).toUpperCase();
+        if(!/^VZ-[A-Z0-9-]{8,190}$/.test(reference)) return fail(res,'Format reference pesanan tidak valid.',400);
+        if(!Fulfillment.ready()) return fail(res,'Pusat pesanan belum terhubung ke penyimpanan.',503);
+        const [order,receipt]=await Promise.all([Fulfillment.getOrder(reference),Fulfillment.getReceipt(reference)]);
+        if(!order&&!receipt) return fail(res,'Reference pesanan tidak ditemukan.',404);
+        let payment=null,paymentStatus='unknown';
+        if(order?.payment_id&&SewaPay.ready()){
+          try{payment=await SewaPay.getStatus({id:order.payment_id,reference});paymentStatus=normalizeSewaStatus(payment?.status);}catch{paymentStatus='unavailable';}
+        }
+        return ok(res,{
+          reference,
+          payment_id:order?.payment_id||null,
+          product_title:order?.product_title||receipt?.product_title||'',
+          variant_title:order?.variant_title||receipt?.variant_title||'',
+          quantity:Number(order?.quantity??receipt?.quantity??0),
+          amount:Number(payment?.total_payment??payment?.amount??order?.amount??0),
+          method:order?.method||payment?.method||'',
+          payment_status:paymentStatus,
+          fulfillment_status:receipt?.status||(paymentStatus==='success'?'processing':'waiting_payment'),
+          delivered_items:Array.isArray(receipt?.accounts)?receipt.accounts.length:0,
+          has_delivery:Boolean(receipt?.status==='fulfilled'&&Array.isArray(receipt?.accounts)&&receipt.accounts.length),
+          buyer:maskedBuyer(order?.buyer),
+          created_at:order?.created_at||receipt?.created_at||null,
+          fulfilled_at:receipt?.fulfilled_at||null,
+          last_error:receipt?.last_error||null,
+        });
       }
       case 'payment_cancel': {
         if(!method(req,'POST')) return fail(res,'Method tidak diizinkan.',405);
@@ -685,7 +726,9 @@ module.exports=async function handler(req,res){
         if(!reference) return fail(res,'reference wajib diisi.');
         const [order,receipt]=await Promise.all([Fulfillment.getOrder(reference),Fulfillment.getReceipt(reference)]);
         if(!order&&!receipt) return fail(res,'Order/receipt tidak ditemukan.',404);
-        return ok(res,{order,receipt:Fulfillment.publicReceipt(receipt)});
+        let payment=null;
+        if(order?.payment_id&&SewaPay.ready()){try{payment=await SewaPay.getStatus({id:order.payment_id,reference});}catch{}}
+        return ok(res,{order,payment,payment_status:payment?normalizeSewaStatus(payment.status):'unavailable',receipt:Fulfillment.publicReceipt(receipt)});
       }
       case 'admin_fulfillment_retry': {
         if(requireAdmin(req,res)) return;
