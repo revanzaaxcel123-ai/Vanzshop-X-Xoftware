@@ -4,6 +4,8 @@ Build: `HARDMAX-v19-GEMINI-VANZCAT`
 
 V19 menghubungkan VanzCat ke Gemini melalui backend serverless. API key tidak pernah masuk ke HTML/JavaScript browser. VanzCat menerima konteks katalog live, dapat memahami pertanyaan lanjutan, memakai status reference yang sudah disanitasi, dan otomatis kembali ke jawaban lokal jika Gemini tidak tersedia.
 
+Jika model utama mengalami high demand, rate limit, atau gangguan 5xx, gateway otomatis mencoba `gemini-3.5-flash-lite` → `gemini-3.1-flash-lite` → `gemini-3.5-flash` sebelum memakai jawaban lokal.
+
 Tambahkan secret berikut di **Vercel → Project Settings → Environment Variables**, aktifkan untuk Production/Preview/Development sesuai kebutuhan, lalu redeploy:
 
 ```text

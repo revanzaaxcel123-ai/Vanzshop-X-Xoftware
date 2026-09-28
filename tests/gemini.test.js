@@ -8,8 +8,14 @@ process.env.GEMINI_TIMEOUT='5000';
 process.env.GEMINI_MAX_OUTPUT_TOKENS='300';
 
 const calls=[];
+let simulateHighDemand=false;
 global.fetch=async(url,options={})=>{
   calls.push({url:String(url),options,body:JSON.parse(options.body||'{}')});
+  if(simulateHighDemand&&String(url).includes('/gemini-test-model:generateContent'))return {
+    ok:false,
+    status:503,
+    async text(){return JSON.stringify({error:{message:'Model sedang high demand.'}});},
+  };
   return {
     ok:true,
     status:200,
@@ -40,5 +46,13 @@ const Gemini=require('../lib/gemini');
   assert.match(calls[0].body.systemInstruction.parts[0].text,/Canva Pro/);
   assert.equal(calls[0].body.generationConfig.maxOutputTokens,300);
   assert.equal(calls[0].body.contents.at(-1).parts[0].text,'Ada Canva?');
+
+  simulateHighDemand=true;
+  calls.length=0;
+  const fallback=await Gemini.generate({message:'Tes fallback model',products:[]});
+  assert.equal(calls.length,2,'high demand must retry the first fallback model');
+  assert.match(calls[0].url,/gemini-test-model:generateContent/);
+  assert.match(calls[1].url,/gemini-3\.5-flash-lite:generateContent/);
+  assert.equal(fallback.model,'gemini-3.5-flash-lite');
   console.log('PASS gemini.test.js');
 })().catch(error=>{console.error(error);process.exit(1);});
