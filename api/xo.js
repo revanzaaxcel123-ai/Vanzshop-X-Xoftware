@@ -21,7 +21,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v16-CATALOG-STUDIO';
+const BUILD_ID = 'HARDMAX-v17-RESELLER-STOREFRONT';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 
 function envList(raw){ return String(raw||'').split(/[\n,]+/).map(v=>String(v).trim()).filter(Boolean); }
@@ -47,9 +47,13 @@ const STORE = Object.freeze({
   name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
   tagline: String(process.env.STORE_TAGLINE || 'Produk digital pilihan, stok live, checkout otomatis.').trim(),
   support: {
-    whatsapp: String(process.env.STORE_WHATSAPP || '').trim(),
+    whatsapp: String(process.env.STORE_WHATSAPP || '0895415204928').trim(),
     telegram: String(process.env.STORE_TELEGRAM || '').trim(),
     email: String(process.env.STORE_EMAIL || '').trim(),
+  },
+  reseller: {
+    whatsapp: String(process.env.STORE_RESELLER_WHATSAPP || process.env.STORE_WHATSAPP || '0895415204928').trim(),
+    group_url: String(process.env.STORE_RESELLER_GROUP || 'https://chat.whatsapp.com/DQ2PsowpGt5FxhQDAS2sAz').trim(),
   },
   appearance: {
     theme: ['dark', 'light'].includes(LEGACY_THEME) ? LEGACY_THEME : 'dark',
@@ -68,7 +72,7 @@ const STORE = Object.freeze({
     mark: String(process.env.STORE_BRAND_MARK || 'V').trim().slice(0,2) || 'V',
     subtitle: String(process.env.STORE_BRAND_SUBTITLE || 'PRODUK DIGITAL').trim().slice(0,60) || 'PRODUK DIGITAL',
     logo_url: String(process.env.STORE_LOGO_URL || '').trim(),
-    hero_title: String(process.env.STORE_HERO_TITLE || 'VanzShop — Pusat Produk Digital Termurah').trim(),
+    hero_title: String(process.env.STORE_HERO_TITLE || 'Pusat Premium Digital Termurah').trim(),
     hero_subtitle: String(process.env.STORE_HERO_SUBTITLE || 'Produk digital pilihan dengan stok real-time, checkout ringkas, dan pengiriman akun otomatis setelah pembayaran berhasil.').trim(),
     hero_badges: envList(process.env.STORE_HERO_BADGES || 'Harga bersaing,Stok real-time,Pembayaran aman,Proses otomatis').slice(0,8),
     hero_slides: envList(process.env.STORE_HERO_SLIDES || '/assets/banner/banner1.jpg,/assets/banner/banner2.jpg,/assets/banner/banner3.jpg,/assets/banner/banner4.jpg,/assets/banner/banner5.jpg').slice(0,10),

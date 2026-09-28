@@ -1,8 +1,8 @@
-# HARDMAX v16 — Catalog Studio
+# HARDMAX v17 — Reseller Storefront
 
-Build: `HARDMAX-v16-CATALOG-STUDIO`
+Build: `HARDMAX-v17-RESELLER-STOREFRONT`
 
-V16 mempertahankan reservation/anti-double V15 dan menambahkan Catalog Studio: harga tabel admin direkonsiliasi dengan forward catalog `/v1/product`, editor produk + variasi terpadu, gambar produk otomatis/manual, rekap order, kontrol kecepatan banner, serta mode siang/malam.
+V17 mempertahankan Catalog Studio V16 dan merombak storefront mengikuti visual Join Reseller: dark/morning theme yang konsisten, headline premium berkilau halus, banner langsung di atas katalog, global search, branding Join Reseller, serta halaman pesanan yang menjelaskan produk dan detail yang diterima. Fitur publik Isi Saldo dan registrasi Akun dihapus; checkout langsung memakai Sewa Pay.
 
 Gambar manual disimpan sebagai metadata katalog di Redis/Upstash yang sama dengan fulfillment. Upload browser dioptimasi menjadi JPG maksimal 900px sebelum dikirim. Jika provider mengirim `thumbnail`, `image`, `cover`, atau `media`, gambar tersebut dipakai otomatis; jika tidak ada, storefront memakai asset brand lokal.
 
@@ -11,6 +11,9 @@ ENV tampilan tambahan:
 ```text
 STORE_COLOR_MODE=dark
 STORE_BANNER_SECONDS=4.2
+STORE_WHATSAPP=0895415204928
+STORE_RESELLER_WHATSAPP=0895415204928
+STORE_RESELLER_GROUP=https://chat.whatsapp.com/DQ2PsowpGt5FxhQDAS2sAz
 ```
 
 `STORE_BANNER_SECONDS` menerima nilai 2–20 detik. Perubahan ENV hanya aktif setelah deployment baru.
