@@ -59,13 +59,14 @@ function invoke({method='GET',query={},body,headers={}}={}){
   assert.equal(r.body.data.base_url,'https://backend-s2.xoftware.id');
   assert.equal(r.body.data.catalog_endpoint,'/v1/product');
   assert.equal(r.body.data.readme_source_of_truth,true);
-  assert.equal(r.body.data.build,'HARDMAX-v20-MOBILE-CHECKOUT');
+  assert.equal(r.body.data.build,'HARDMAX-v21-THEME-PROFILE');
 
   calls.length=0;
   r=await invoke({query:{a:'init'}});
   assert.equal(r.status,200);
   assert.equal(r.body.data.store.reseller.group_url,'https://chat.whatsapp.com/DQ2PsowpGt5FxhQDAS2sAz');
   assert.equal(r.body.data.store.appearance.assistant_motion,'subtle');
+  assert.match(r.body.data.store.branding.assistant_welcome,/Butuh bantuan/);
   assert.equal(r.body.data.products.length,2);
   assert.equal(r.body.data.products[1].is_reseller,true);
   assert.equal(r.body.data.products[1].variations[0].stock,3);

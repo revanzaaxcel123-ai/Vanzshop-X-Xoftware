@@ -1,3 +1,17 @@
+# HARDMAX v21 — Theme, Profile & Cleaner Header
+
+Build: `HARDMAX-v21-THEME-PROFILE`
+
+V21 menambahkan pemilih seluruh tema langsung dari header, menu akun/profil lokal, favicon VanzShop yang dipaksa refresh, navigasi brand/Home yang tetap berada di storefront, serta checkout tanpa label guest yang berlebihan. Tombol pencarian dan Join Reseller di header dihapus.
+
+Pesan pertama VanzCat sekarang dapat diatur dari **Admin → Tema & Branding** atau ENV:
+
+```text
+STORE_VANZCAT_WELCOME=Butuh bantuan memilih produk atau mengecek pesanan? Aku siap membantu.
+```
+
+---
+
 # HARDMAX v20 — Focused Storefront & Mobile Checkout
 
 Build: `HARDMAX-v20-MOBILE-CHECKOUT`

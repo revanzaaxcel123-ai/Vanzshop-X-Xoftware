@@ -2,9 +2,9 @@
   "name": "VanzShop.com",
   "short_name": "VanzShop",
   "description": "Pusat produk digital premium termurah.",
-  "start_url": "/",
+  "start_url": "/#/",
   "display": "standalone",
   "background_color": "#050509",
   "theme_color": "#050509",
-  "icons": [{"src":"/assets/icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "icons": [{"src":"/assets/icon.svg?v=2","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
 }

@@ -22,7 +22,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v20-MOBILE-CHECKOUT';
+const BUILD_ID = 'HARDMAX-v21-THEME-PROFILE';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 const AI_RATE_LIMIT = Math.max(3,Math.min(60,Number(process.env.GEMINI_RATE_LIMIT_PER_MINUTE||12)||12));
 const AI_RATE_WINDOW_MS = 60*1000;
@@ -81,6 +81,7 @@ const STORE = Object.freeze({
     hero_subtitle: String(process.env.STORE_HERO_SUBTITLE || 'Produk digital pilihan dengan stok real-time, checkout ringkas, dan pengiriman akun otomatis setelah pembayaran berhasil.').trim(),
     hero_badges: envList(process.env.STORE_HERO_BADGES || 'Harga bersaing,Stok real-time,Pembayaran aman,Proses otomatis').slice(0,8),
     hero_slides: envList(process.env.STORE_HERO_SLIDES || '/assets/banner/banner1.jpg,/assets/banner/banner2.jpg,/assets/banner/banner3.jpg,/assets/banner/banner4.jpg,/assets/banner/banner5.jpg').slice(0,10),
+    assistant_welcome: String(process.env.STORE_VANZCAT_WELCOME || 'Butuh bantuan memilih produk atau mengecek pesanan? Aku siap membantu.').trim().slice(0,280),
     footer_note: String(process.env.STORE_FOOTER_NOTE || 'Produk digital hemat · stok real-time · proses otomatis').trim(),
     receipt_note: String(process.env.STORE_RECEIPT_NOTE || 'Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.').trim(),
     body_font: envFont(process.env.STORE_FONT_BODY, 'Plus Jakarta Sans'),
