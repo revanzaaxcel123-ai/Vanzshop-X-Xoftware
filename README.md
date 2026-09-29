@@ -1,3 +1,19 @@
+# HARDMAX v20 — Focused Storefront & Mobile Checkout
+
+Build: `HARDMAX-v20-MOBILE-CHECKOUT`
+
+V20 menghapus blok promosi/SEO visual setelah katalog, merapikan VanzCat menjadi asisten resmi yang lebih ringkas, dan membangun ulang area pembelian mobile agar varian, jumlah, pembayaran, serta tombol checkout tidak terpotong. Di layar HP tombol checkout utama tetap terlihat di atas navigasi bawah, sementara VanzCat berubah menjadi panel compact yang tidak mengambil seluruh layar.
+
+Animasi VanzCat dapat diatur dari **Admin → Tema & Branding** atau melalui ENV:
+
+```text
+STORE_VANZCAT_MOTION=subtle
+```
+
+Nilai yang tersedia: `subtle`, `playful`, dan `off`.
+
+---
+
 # HARDMAX v19 — Gemini VanzCat
 
 Build: `HARDMAX-v19-GEMINI-VANZCAT`

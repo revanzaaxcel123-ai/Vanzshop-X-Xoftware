@@ -60,7 +60,7 @@ global.fetch=async(url,options={})=>{
     stockRecords.splice(idx,1);return reply(200,{code:200,message:'Data akun stok berhasil dihapus',data:null});
   }
   if(u.host==='sewapay.id'&&u.pathname==='/api/v1/payments/methods') return reply(200,{methods:['QRIS'],binance:{enabled:false,payId:null}});
-  if(u.host==='sewapay.id'&&u.pathname==='/api/v1/payments/create'){createdReference=body.reference;return reply(200,{id:'tx_test_1',status:'PENDING',amount:25000,fee:200,total_payment:25200,method:'QRIS',reference:body.reference,description:body.description,payment_data:{qr_string:'000201TEST'},expires_at:'2026-09-28T00:00:00.000Z'});}
+  if(u.host==='sewapay.id'&&u.pathname==='/api/v1/payments/create'){createdReference=body.reference;return reply(200,{id:'tx_test_1',status:'PENDING',amount:25000,fee:200,total_payment:25200,method:'QRIS',reference:body.reference,description:body.description,payment_data:{qr_string:'000201TEST'},expires_at:'2030-09-28T00:00:00.000Z'});}
   if(u.host==='sewapay.id'&&u.pathname==='/api/v1/payments/status') return reply(200,{id:'tx_test_1',reference:u.searchParams.get('reference')||createdReference,amount:25000,method:'QRIS',status:'COMPLETED',fee:200,net_amount:25000,payment_data:{qr_string:'000201TEST'}});
   if(u.host==='sewapay.id'&&u.pathname==='/api/v1/payments/cancel') return reply(200,{id:body.id,status:'CANCELLED'});
   return reply(404,{message:'not mocked'});

@@ -22,7 +22,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
 const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
-const BUILD_ID = 'HARDMAX-v19-GEMINI-VANZCAT';
+const BUILD_ID = 'HARDMAX-v20-MOBILE-CHECKOUT';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 const AI_RATE_LIMIT = Math.max(3,Math.min(60,Number(process.env.GEMINI_RATE_LIMIT_PER_MINUTE||12)||12));
 const AI_RATE_WINDOW_MS = 60*1000;
@@ -71,6 +71,7 @@ const STORE = Object.freeze({
     density: ['compact', 'comfortable'].includes(String(process.env.STORE_DENSITY || 'comfortable').toLowerCase()) ? String(process.env.STORE_DENSITY || 'comfortable').toLowerCase() : 'comfortable',
     hero: !['0','false','off','no'].includes(String(process.env.STORE_HERO || 'true').toLowerCase()),
     banner_seconds: Math.max(2, Math.min(20, Number(process.env.STORE_BANNER_SECONDS || 4.2) || 4.2)),
+    assistant_motion: ['subtle','playful','off'].includes(String(process.env.STORE_VANZCAT_MOTION || 'subtle').trim().toLowerCase()) ? String(process.env.STORE_VANZCAT_MOTION || 'subtle').trim().toLowerCase() : 'subtle',
   },
   branding: {
     mark: String(process.env.STORE_BRAND_MARK || 'V').trim().slice(0,2) || 'V',
