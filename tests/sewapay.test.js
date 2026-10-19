@@ -108,6 +108,11 @@ function invoke({method='GET',query={},body,headers={}}={}){return new Promise((
   assert.equal(r.body.data.fulfillment.status,'fulfilled');
   assert.equal(r.body.data.fulfillment.accounts.length,1);
   assert.equal(r.body.data.fulfillment.accounts[0].value.Email,'buyer@example.com');
+  assert.equal(r.body.data.order.reference,reference);
+  assert.equal(r.body.data.order.payment_id,'tx_test_1');
+  assert.equal(r.body.data.order.product_title,'Netflix');
+  assert.equal(r.body.data.order.variant_title,'1 Bulan');
+  assert.equal(r.body.data.order.unit_price,25000);
   assert.equal(stockRecords.length,0,'stock must be deleted after claim');
   const deleteCalls1=calls.filter(x=>x.host==='backend-s2.xoftware.id'&&x.method==='DELETE');
   assert.equal(deleteCalls1.length,1);

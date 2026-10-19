@@ -709,6 +709,32 @@ function renderProfile(){
 
 function orders(){return safeJsonParse(localStorage.getItem('vanz_orders')||'[]',[]);}
 function saveLocalOrder(o){const xs=orders().filter(x=>x.transaction_id!==o.transaction_id);xs.unshift(o);localStorage.setItem('vanz_orders',JSON.stringify(xs.slice(0,40)));}
+function paymentHandoffKey(txid){return `vanz_payment_handoff_${String(txid)}`;}
+function cleanPaymentRoute(txid){const encoded=encodeURIComponent(txid),query=new URLSearchParams(location.search);query.delete('token');const search=query.toString();return String(location.pathname||'').startsWith('/bayar/')?`/bayar/${encoded}`:`${location.pathname}${search?'?'+search:''}#/bayar/${encoded}`;}
+async function acceptPaymentHandoff(txid,paymentToken){
+  const storageKey=paymentHandoffKey(txid),cleanUrl=cleanPaymentRoute(txid);
+  if(paymentToken)sessionStorage.setItem(storageKey,paymentToken);
+  paymentToken=String(paymentToken||sessionStorage.getItem(storageKey)||'');
+  if(!paymentToken){renderPayment(txid);return;}
+  let local=orders().find(x=>String(x.transaction_id)===String(txid));
+  if(local?.payment_token){sessionStorage.removeItem(storageKey);history.replaceState(null,'',cleanUrl);return renderPayment(txid);}
+  syncSeo('orders');
+  shell(`<main class="payment-check wrap"><section><span class="loader"></span><div><span class="section-kicker">MEMBUKA CHECKOUT AMAN</span><h1>Menghubungkan pesanan WhatsApp</h1><p>Payment token sedang diverifikasi. Detail rahasia tidak diletakkan di URL setelah pesanan tersimpan di perangkat ini.</p></div></section></main>`,'orders');
+  try{
+    const data=await api('payment_status',{id:txid,payment_token:paymentToken}),d=data?.payment||{},order=data?.order||{},f=data?.fulfillment||{};
+    if(String(order.payment_id||txid)!==String(txid))throw new Error('Payment ID tidak cocok.');
+    const status=String(data?.status||'pending').toLowerCase();
+    local={type:'sewapay',provider:'sewapay',transaction_id:String(txid),reference:String(order.reference||d.reference||''),payment_token:String(paymentToken),product_id:order.product_id??null,variation_id:order.variation_id??null,sku:String(order.code||''),product_title:String(order.product_title||'Produk digital VanzShop'),variant:String(order.variant_title||'Varian utama'),quantity:Math.max(1,Number(order.quantity)||1),unit_price:Number(order.unit_price||0),amount:Number(d.amount??order.amount??0),fee:Number(d.fee||0),total:Number(d.total_payment??d.amount??order.amount??0),status,qr_string:d?.payment_data?.qr_string||'',expires_at:d.expires_at||'',fulfillment:f.status||((status==='success')?'processing':'waiting-payment'),accounts:Array.isArray(f.accounts)?f.accounts.map(x=>x?.value??x):[],fulfillment_error:f.error||f.last_error||'',delivery_label:'Detail akun / akses digital sesuai varian',buyer:{name:'Pembeli WhatsApp',whatsapp:'',email:''},created_at:order.created_at||Date.now()};
+    saveLocalOrder(local);
+    sessionStorage.removeItem(storageKey);
+    history.replaceState(null,'',cleanUrl);
+    return renderPayment(txid);
+  }catch(e){
+    history.replaceState(null,'',cleanUrl);
+    shell(`<main class="payment-stopped wrap"><section><div class="stopped-mark">!</div><span class="section-kicker">CHECKOUT BELUM TERHUBUNG</span><h1>QRIS belum dapat dimuat</h1><p>${esc(e.message||'Payment token salah atau sudah kedaluwarsa.')}</p><div class="button-row"><button class="btn btn-primary" id="retryPaymentHandoff" type="button">Coba muat lagi</button><a class="btn" href="#/pesanan">Lacak reference</a><a class="btn" href="#/">Katalog</a></div></section></main>`,'orders');
+    const retry=$('#retryPaymentHandoff');if(retry)retry.onclick=()=>acceptPaymentHandoff(txid,paymentToken);
+  }
+}
 function orderState(o){
   const status=String(o?.status||'pending').toLowerCase(),fulfillment=String(o?.fulfillment||'').toLowerCase();
   if(status==='success'&&fulfillment==='fulfilled')return{label:'Siap digunakan',tone:'good',detail:`${Array.isArray(o.accounts)?o.accounts.length:Math.max(1,Number(o.quantity)||1)} detail tersedia`};
@@ -735,7 +761,7 @@ async function trackReference(value){
   }catch(e){box.innerHTML=`<div class="reference-result bad"><b>Reference belum ditemukan</b><span>${esc(e.message)}</span></div>`;}
 }
 async function renderPayment(txid){
-  let o=orders().find(x=>String(x.transaction_id)===String(txid));if(!o){toast('Pesanan tidak ditemukan.',true);location.hash='#/pesanan';return;}
+  let o=orders().find(x=>String(x.transaction_id)===String(txid));if(!o){shell(`<main class="payment-stopped wrap"><section><h1>Buka link pesanan lengkap</h1><p>Link ini belum menyertakan akses pesanan. Buka kembali link lengkap dari WhatsApp, atau balas HASIL diikuti reference di chat bot untuk menerima detail produk.</p><a class="btn" href="#/pesanan">Lacak status pesanan</a></section></main>`,'orders');return;}
   syncSeo('orders');
   if(String(o.status)==='success'&&String(o.fulfillment)==='fulfilled'&&Array.isArray(o.accounts)&&o.accounts.length){showSuccess(o,o.accounts);return;}
   shell(`<main class="payment-check wrap"><section><span class="loader"></span><div><span class="section-kicker">SINKRONISASI PESANAN</span><h1>Mengecek status terbaru</h1><p>QRIS tidak akan ditampilkan sebelum server memastikan transaksi masih menunggu pembayaran.</p></div></section></main>`,'orders');
@@ -1270,6 +1296,7 @@ function activeRoute(){
   const h=String(location.hash||'');
   if(h.startsWith('#/')) return h.slice(1);
   const p=String(location.pathname||'/').replace(/\/+$/,'')||'/';
+  if(p.startsWith('/bayar/')) return `${p}${location.search||''}`;
   if(p==='/admin'||p.startsWith('/admin/')) return p;
   return '/';
 }
@@ -1279,7 +1306,7 @@ async function renderRoute(){
   const admin=route.match(/^\/admin(?:\/([^/]+))?$/);
   if(admin){if(!String(location.pathname||'').startsWith('/admin')){location.replace('/admin');return;}await ensureInit();return renderAdmin(admin[1]||'overview');}
   const m=route.match(/^\/produk\/([^/]+)\/(.+)$/);if(m){await ensureInit();const p=getProduct(m[1],decodeURIComponent(m[2]));if(!p){toast('Produk tidak ditemukan.',true);location.hash='#/';return;}state.product=p;return detailHtml(p);}
-  const pay=route.match(/^\/bayar\/(.+)$/);if(pay){await ensureInit();return renderPayment(decodeURIComponent(pay[1]));}
+  const pay=route.match(/^\/bayar\/([^?]+)(?:\?(.*))?$/);if(pay){const txid=decodeURIComponent(pay[1]),params=new URLSearchParams(pay[2]||''),paymentToken=params.get('token')||sessionStorage.getItem(paymentHandoffKey(txid));return paymentToken?acceptPaymentHandoff(txid,paymentToken):renderPayment(txid);}
   const orderRoute=route.match(/^\/pesanan(?:\/(.+))?$/);if(orderRoute){await ensureInit();return renderOrders(orderRoute[1]?decodeURIComponent(orderRoute[1]):'');}
   if(route==='/tas'){await ensureInit();return renderCart();}
   if(route==='/profil'){await ensureInit();return renderProfile();}

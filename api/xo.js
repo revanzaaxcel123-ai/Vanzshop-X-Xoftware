@@ -626,6 +626,8 @@ module.exports=async function handler(req,res){
         const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
         if(sel.stock!=null && sel.stock<quantity) return fail(res,'Stok Xoftware tidak mencukupi.',409,{stock:sel.stock,requested:quantity});
         const amount=Math.round(sel.unitPrice*quantity);
+        if(amount<1000) return fail(res,'Minimum pembayaran QRIS adalah Rp 1.000. Pilih variasi lain atau sesuaikan harga produk.',400,{minimum:1000,amount});
+        if(amount>100000000) return fail(res,'Maksimum pembayaran QRIS adalah Rp 100.000.000.',400,{maximum:100000000,amount});
         const reference=paymentReference();
         const description=str(`${sel.product.title}${sel.variation?` - ${sel.variation.title||sel.variation.name}`:''} x${quantity}`,160);
 
@@ -676,6 +678,7 @@ module.exports=async function handler(req,res){
         if(reference && reference!==String(signed.reference)) return fail(res,'Reference tidak cocok dengan token.',401);
         const response=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
         const status=normalizeSewaStatus(response?.status);
+        let storedOrder=Fulfillment.ready()?await Fulfillment.getOrder(signed.reference).catch(()=>null):null;
         let fulfillment={status:'not-ready',automatic:Fulfillment.ready(),accounts:[]};
         if(['fail','cancelled'].includes(status) && Fulfillment.ready()){
           await Fulfillment.releaseOrderReservations(signed.reference).catch(()=>{});
@@ -685,10 +688,9 @@ module.exports=async function handler(req,res){
             fulfillment={status:'store-not-configured',automatic:false,accounts:[],error:'Redis/Upstash fulfillment store belum dikonfigurasi.'};
           }else{
             try{
-              let stored=await Fulfillment.getOrder(signed.reference);
-              if(!stored){
+              if(!storedOrder){
                 const sel=await resolveCatalogSelection({product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code});
-                stored=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
+                storedOrder=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
               }
               const receipt=await Fulfillment.claimPaidOrder({reference:signed.reference,payment:response,source:'status-poll'});
               fulfillment={...Fulfillment.publicReceipt(receipt),automatic:true};
@@ -698,7 +700,11 @@ module.exports=async function handler(req,res){
             }
           }
         }
-        return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment});
+        return ok(res,{provider:'sewapay',payment:response,status,order:{
+          reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,
+          product_title:storedOrder?.product_title||'',variant_title:storedOrder?.variant_title||'',quantity:signed.quantity,
+          unit_price:Number(storedOrder?.unit_price||0),amount:signed.amount,created_at:storedOrder?.created_at||'',
+        },fulfillment});
       }
       case 'order_lookup': {
         return ok(res,await safeOrderLookup(q(req,'reference')||bodyOf(req).reference));
@@ -768,8 +774,10 @@ module.exports=async function handler(req,res){
         const b=bodyOf(req), token=str(b.payment_token||q(req,'payment_token'),5000); let signed;
         try{signed=verifyPaymentToken(token);}catch(e){return fail(res,e.message,e.status||500);}
         if(!signed)return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
+        const requestedId=str(b.id||q(req,'id'),160);
+        if(requestedId&&requestedId!==String(signed.payment_id))return fail(res,'Payment id tidak cocok dengan token.',401);
         if(!Fulfillment.ready())return fail(res,'Fulfillment store belum dikonfigurasi.',503,Fulfillment.status());
-        return ok(res,{fulfillment:Fulfillment.publicReceipt(await Fulfillment.getReceipt(signed.reference)),reference:signed.reference});
+        return ok(res,{fulfillment:Fulfillment.publicReceipt(await Fulfillment.getReceipt(signed.reference)),reference:signed.reference,payment_id:signed.payment_id});
       }
       case 'fulfillment_retry': {
         if(!method(req,'POST'))return fail(res,'Method tidak diizinkan.',405);
