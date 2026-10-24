@@ -3,4 +3,4 @@ Allow: /
 Disallow: /admin
 Disallow: /api/
 
-Sitemap: https://vanzshop.com/sitemap.xml
+Sitemap: https://vexora.store/sitemap.xml

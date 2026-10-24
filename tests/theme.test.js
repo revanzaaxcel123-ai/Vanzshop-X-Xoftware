@@ -31,8 +31,8 @@ for (let i = 1; i <= 5; i += 1) {
 assert.match(js, /campaign-slider-track/);
 assert.match(js, /function storefrontSections\(/);
 assert.match(js, /id="vanzshop-seo"/);
-assert.match(js, /direct-order\.vanzshop\.com/);
-assert.match(js, /ketentuan-garansi\.vanzshop\.com/);
+assert.match(js, /direct-order|vexora\.store/);
+assert.match(js, /ketentuan-garansi|vexora\.store/);
 assert.match(js, /id="join-reseller"/);
 assert.match(css, /HARDMAX v17 — Join Reseller storefront system/);
 assert.match(css, /HARDMAX v18 — commerce/);

@@ -1,10 +1,10 @@
 {
-  "name": "VanzShop.com",
-  "short_name": "VanzShop",
-  "description": "Pusat produk digital premium termurah.",
+  "name": "Zona Premium",
+  "short_name": "Zona Premium",
+  "description": "Aplikasi premium untuk hiburan, kreativitas, dan produktivitas.",
   "start_url": "/#/",
   "display": "standalone",
-  "background_color": "#050509",
-  "theme_color": "#050509",
-  "icons": [{"src":"/assets/icon.svg?v=2","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "background_color": "#f8f9f5",
+  "theme_color": "#f8f9f5",
+  "icons": [{"src":"/assets/zona-premium-logo.png","sizes":"1254x1254","type":"image/png","purpose":"any"}]
 }

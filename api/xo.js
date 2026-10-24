@@ -7,7 +7,7 @@ const MetadataStore = require('../lib/fulfillment-store');
 const Gemini = require('../lib/gemini');
 
 // README.md is the source of truth for this gateway.
-const BASE_URL = 'https://backend-s2.xoftware.id';
+const BASE_URL = String(process.env.XSOFTWARE_BASE_URL || 'https://backend-s2.xoftware.id').trim().replace(/\/+$/, '');
 const API_KEY = String(process.env.XSOFTWARE_API_KEY || '').trim();
 function envSecret(v){
   let s=String(v||'').trim();
@@ -21,7 +21,7 @@ const CHECKOUT_IDENTITY_MODE = ['user','shared'].includes(String(process.env.XSO
   : 'user';
 const SHARED_CHANNEL = String(process.env.XSOFTWARE_SHARED_CHANNEL || 'whatsapp').trim().toLowerCase() === 'telegram' ? 'telegram' : 'whatsapp';
 const SHARED_SENDER_RAW = envSecret(process.env.XSOFTWARE_SHARED_SENDER);
-const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'VanzShop Checkout').trim().slice(0,120);
+const SHARED_NAME = String(process.env.XSOFTWARE_SHARED_NAME || 'Zona Premium Checkout').trim().slice(0,120);
 const BUILD_ID = 'HARDMAX-v21-THEME-PROFILE';
 const PAYMENT_TOKEN_SECRET = envSecret(process.env.PAYMENT_TOKEN_SECRET || process.env.SEWAPAY_SECRET_KEY);
 const AI_RATE_LIMIT = Math.max(3,Math.min(60,Number(process.env.GEMINI_RATE_LIMIT_PER_MINUTE||12)||12));
@@ -44,25 +44,25 @@ const ADMIN_THEME_KEYS = new Set(['gold','latte','ocean','emerald','nebula','sun
 const SITE_THEME_RAW = String(process.env.STORE_SITE_THEME || '').trim().toLowerCase();
 const ADMIN_THEME_RAW = String(process.env.STORE_ADMIN_THEME || '').trim().toLowerCase();
 const STORE_ACCENT_RAW = String(process.env.STORE_ACCENT || '').trim().toLowerCase();
-const LEGACY_THEME = String(process.env.STORE_THEME || 'dark').trim().toLowerCase();
+const LEGACY_THEME = String(process.env.STORE_THEME || 'light').trim().toLowerCase();
 const STORE_COLOR_MODE = String(process.env.STORE_COLOR_MODE || LEGACY_THEME).trim().toLowerCase();
 
 const STORE = Object.freeze({
-  name: String(process.env.STORE_NAME || 'VanzShop.com').trim(),
-  tagline: String(process.env.STORE_TAGLINE || 'Produk digital pilihan, stok live, checkout otomatis.').trim(),
+  name: String(process.env.STORE_NAME || 'Zona Premium').trim(),
+  tagline: String(process.env.STORE_TAGLINE || 'Personal digital boutique, stok live, aktivasi otomatis 24/7.').trim(),
   support: {
-    whatsapp: String(process.env.STORE_WHATSAPP || '0895415204928').trim(),
+    whatsapp: String(process.env.STORE_WHATSAPP || '').trim(),
     telegram: String(process.env.STORE_TELEGRAM || '').trim(),
     email: String(process.env.STORE_EMAIL || '').trim(),
   },
   reseller: {
-    whatsapp: String(process.env.STORE_RESELLER_WHATSAPP || process.env.STORE_WHATSAPP || '0895415204928').trim(),
-    group_url: String(process.env.STORE_RESELLER_GROUP || 'https://chat.whatsapp.com/DQ2PsowpGt5FxhQDAS2sAz').trim(),
+    whatsapp: String(process.env.STORE_RESELLER_WHATSAPP || process.env.STORE_WHATSAPP || '').trim(),
+    group_url: String(process.env.STORE_RESELLER_GROUP || '').trim(),
   },
   appearance: {
     theme: ['dark', 'light'].includes(LEGACY_THEME) ? LEGACY_THEME : 'dark',
     color_mode: ['dark', 'light'].includes(STORE_COLOR_MODE) ? STORE_COLOR_MODE : 'dark',
-    site_theme: SITE_THEME_KEYS.has(SITE_THEME_RAW) ? SITE_THEME_RAW : (LEGACY_THEME === 'light' ? 'pearl' : 'gold'),
+    site_theme: SITE_THEME_KEYS.has(SITE_THEME_RAW) ? SITE_THEME_RAW : (LEGACY_THEME === 'light' ? 'mint' : 'gold'),
     admin_theme: ADMIN_THEME_KEYS.has(ADMIN_THEME_RAW) ? ADMIN_THEME_RAW : (LEGACY_THEME === 'light' ? 'latte' : 'gold'),
     accent: /^#[0-9a-f]{6}$/i.test(STORE_ACCENT_RAW) ? STORE_ACCENT_RAW : '#f3c74f',
     custom_accent: /^#[0-9a-f]{6}$/i.test(STORE_ACCENT_RAW),
@@ -74,15 +74,15 @@ const STORE = Object.freeze({
     assistant_motion: ['subtle','playful','off'].includes(String(process.env.STORE_VANZCAT_MOTION || 'subtle').trim().toLowerCase()) ? String(process.env.STORE_VANZCAT_MOTION || 'subtle').trim().toLowerCase() : 'subtle',
   },
   branding: {
-    mark: String(process.env.STORE_BRAND_MARK || 'V').trim().slice(0,2) || 'V',
-    subtitle: String(process.env.STORE_BRAND_SUBTITLE || 'PRODUK DIGITAL').trim().slice(0,60) || 'PRODUK DIGITAL',
+    mark: String(process.env.STORE_BRAND_MARK || 'ZP').trim().slice(0,2) || 'VX',
+    subtitle: String(process.env.STORE_BRAND_SUBTITLE || 'APLIKASI PREMIUM PILIHAN').trim().slice(0,60) || 'APLIKASI PREMIUM PILIHAN',
     logo_url: String(process.env.STORE_LOGO_URL || '').trim(),
-    hero_title: String(process.env.STORE_HERO_TITLE || 'Pusat Premium Digital Termurah').trim(),
-    hero_subtitle: String(process.env.STORE_HERO_SUBTITLE || 'Produk digital pilihan dengan stok real-time, checkout ringkas, dan pengiriman akun otomatis setelah pembayaran berhasil.').trim(),
-    hero_badges: envList(process.env.STORE_HERO_BADGES || 'Harga bersaing,Stok real-time,Pembayaran aman,Proses otomatis').slice(0,8),
+    hero_title: String(process.env.STORE_HERO_TITLE || 'Zona Premium · Pusat Premium Digital').trim(),
+    hero_subtitle: String(process.env.STORE_HERO_SUBTITLE || 'Koleksi akun & tools digital premium terkurasi secara personal dengan aktivasi otomatis QRIS dan garansi penuh.').trim(),
+    hero_badges: envList(process.env.STORE_HERO_BADGES || 'Aktivasi Kilat,Stok Real-Time,Garansi Penggantian,Otomatis 24/7').slice(0,8),
     hero_slides: envList(process.env.STORE_HERO_SLIDES || '/assets/banner/banner1.jpg,/assets/banner/banner2.jpg,/assets/banner/banner3.jpg,/assets/banner/banner4.jpg,/assets/banner/banner5.jpg').slice(0,10),
-    assistant_welcome: String(process.env.STORE_VANZCAT_WELCOME || 'Butuh bantuan memilih produk atau mengecek pesanan? Aku siap membantu.').trim().slice(0,280),
-    footer_note: String(process.env.STORE_FOOTER_NOTE || 'Produk digital hemat · stok real-time · proses otomatis').trim(),
+    assistant_welcome: String(process.env.STORE_VANZCAT_WELCOME || 'Butuh bantuan memilih produk digital di Zona Premium atau mengecek pesanan? Aku siap membantu.').trim().slice(0,280),
+    footer_note: String(process.env.STORE_FOOTER_NOTE || 'Zona Premium · Personal Curated Digital Atelier · Sistem Otomatis 24/7').trim(),
     receipt_note: String(process.env.STORE_RECEIPT_NOTE || 'Detail akun dikirim otomatis dari stok aktif. Simpan data login dan segera ganti jika diperlukan.').trim(),
     body_font: envFont(process.env.STORE_FONT_BODY, 'Plus Jakarta Sans'),
     display_font: envFont(process.env.STORE_FONT_DISPLAY, 'Archivo'),
@@ -317,6 +317,8 @@ function normalizeOrderProduct(p){
     discount:x.discount==null?null:Number(x.discount),
     point:x.point==null?null:Number(x.point),
     sold:Number(x.sold??0),
+    rating:x.rating==null?null:Number(x.rating),
+    review_count:x.review_count==null?null:Number(x.review_count),
     stock:rawStock==null?null:Number(rawStock),
     description:String(x.description??x.desc??''),
     is_variation:Boolean(x.is_variation),
@@ -401,16 +403,50 @@ async function fetchCatalog(){
   for(const attempt of [{method:'GET'},{method:'POST',body:{}}]){
     try{
       const r=await xoFetch(ORDER.product,attempt);
-      if(!Array.isArray(r?.data)){
-        const e=new Error('Format katalog Xoftware tidak sesuai README: field data harus berupa array.'); e.status=502; e.upstream=r; throw e;
+      if(Array.isArray(r?.data)){
+        const products=await applyProductMedia(r.data.map(normalizeOrderProduct));
+        return {products,summary:catalogSummary(products,attempt.method)};
       }
-      const products=await applyProductMedia(r.data.map(normalizeOrderProduct));
-      return {products,summary:catalogSummary(products,attempt.method)};
     }catch(e){
       if(!firstError) firstError=e;
       if([401,403].includes(Number(e?.status))) throw e;
     }
   }
+
+  // Fallback ke /v1/products/ (karena Xoftware menonaktifkan endpoint lama /v1/product)
+  try{
+    const res=await xoFetch(`${PRODUCTS}/?page=1&limit=20`,{method:'GET'});
+    const rawList=Array.isArray(res?.data?.products)?res.data.products:(Array.isArray(res?.data)?res.data:[]);
+    const totalPages=Number(res?.data?.pagination?.total_pages)||1;
+    let allManaged=[...rawList];
+    if(totalPages>1){
+      for(let p=2;p<=Math.min(totalPages,5);p++){
+        try{
+          const pageRes=await xoFetch(`${PRODUCTS}/?page=${p}&limit=20`,{method:'GET'});
+          const pageList=Array.isArray(pageRes?.data?.products)?pageRes.data.products:(Array.isArray(pageRes?.data)?pageRes.data:[]);
+          allManaged.push(...pageList);
+        }catch{}
+      }
+    }
+    if(allManaged.length>0){
+      const enriched = await Promise.all(allManaged.map(async p => {
+        if(p.is_variation && (!Array.isArray(p.variations) || !p.variations.length)){
+          try {
+            const detail = await xoFetch(`${PRODUCTS}/${Number(p.id)}`, {method:'GET'});
+            if(detail?.data?.variations) p.variations = detail.data.variations;
+          }catch{}
+        }
+        return normalizeOrderProduct(p);
+      }));
+      const products=await applyProductMedia(enriched);
+      return {products,summary:catalogSummary(products,'GET (managed-products)')};
+    }
+    // Jika belum ada produk yang dibuat di akun Xoftware
+    return {products:[],summary:catalogSummary([],'GET (empty-store)')};
+  }catch(e2){
+    if([401,403].includes(Number(e2?.status))) throw e2;
+  }
+
   throw firstError || Object.assign(new Error('Katalog Xoftware gagal dimuat.'),{status:502});
 }
 
@@ -442,7 +478,7 @@ async function ensureUser(sender,name){
 
 function paymentTokenSecret(){
   if(!PAYMENT_TOKEN_SECRET) throw Object.assign(new Error('PAYMENT_TOKEN_SECRET / SEWAPAY_SECRET_KEY belum dikonfigurasi.'),{status:500});
-  return crypto.createHash('sha256').update(`vanzshop-payment:${PAYMENT_TOKEN_SECRET}`).digest();
+  return crypto.createHash('sha256').update(`vexora-payment:${PAYMENT_TOKEN_SECRET}`).digest();
 }
 function issuePaymentToken(payload){
   const data={v:1,...payload};
@@ -626,8 +662,6 @@ module.exports=async function handler(req,res){
         const sel=await resolveCatalogSelection({product_id:b.product_id,variation_id:b.variation_id,code:b.code});
         if(sel.stock!=null && sel.stock<quantity) return fail(res,'Stok Xoftware tidak mencukupi.',409,{stock:sel.stock,requested:quantity});
         const amount=Math.round(sel.unitPrice*quantity);
-        if(amount<1000) return fail(res,'Minimum pembayaran QRIS adalah Rp 1.000. Pilih variasi lain atau sesuaikan harga produk.',400,{minimum:1000,amount});
-        if(amount>100000000) return fail(res,'Maksimum pembayaran QRIS adalah Rp 100.000.000.',400,{maximum:100000000,amount});
         const reference=paymentReference();
         const description=str(`${sel.product.title}${sel.variation?` - ${sel.variation.title||sel.variation.name}`:''} x${quantity}`,160);
 
@@ -678,7 +712,6 @@ module.exports=async function handler(req,res){
         if(reference && reference!==String(signed.reference)) return fail(res,'Reference tidak cocok dengan token.',401);
         const response=await SewaPay.getStatus({id:signed.payment_id,reference:signed.reference});
         const status=normalizeSewaStatus(response?.status);
-        let storedOrder=Fulfillment.ready()?await Fulfillment.getOrder(signed.reference).catch(()=>null):null;
         let fulfillment={status:'not-ready',automatic:Fulfillment.ready(),accounts:[]};
         if(['fail','cancelled'].includes(status) && Fulfillment.ready()){
           await Fulfillment.releaseOrderReservations(signed.reference).catch(()=>{});
@@ -688,9 +721,10 @@ module.exports=async function handler(req,res){
             fulfillment={status:'store-not-configured',automatic:false,accounts:[],error:'Redis/Upstash fulfillment store belum dikonfigurasi.'};
           }else{
             try{
-              if(!storedOrder){
+              let stored=await Fulfillment.getOrder(signed.reference);
+              if(!stored){
                 const sel=await resolveCatalogSelection({product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code});
-                storedOrder=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
+                stored=await Fulfillment.saveOrder({reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id??null,code:signed.code,quantity:signed.quantity,amount:signed.amount,method:signed.method||'QRIS',product_title:sel.product.title,variant_title:sel.variation?.title||sel.variation?.name||'',unit_price:sel.unitPrice,stock_at_checkout:sel.stock,created_at:new Date().toISOString(),migrated_from_token:true});
               }
               const receipt=await Fulfillment.claimPaidOrder({reference:signed.reference,payment:response,source:'status-poll'});
               fulfillment={...Fulfillment.publicReceipt(receipt),automatic:true};
@@ -700,11 +734,7 @@ module.exports=async function handler(req,res){
             }
           }
         }
-        return ok(res,{provider:'sewapay',payment:response,status,order:{
-          reference:signed.reference,payment_id:signed.payment_id,product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,
-          product_title:storedOrder?.product_title||'',variant_title:storedOrder?.variant_title||'',quantity:signed.quantity,
-          unit_price:Number(storedOrder?.unit_price||0),amount:signed.amount,created_at:storedOrder?.created_at||'',
-        },fulfillment});
+        return ok(res,{provider:'sewapay',payment:response,status,order:{product_id:signed.product_id,variation_id:signed.variation_id,code:signed.code,quantity:signed.quantity,amount:signed.amount},fulfillment});
       }
       case 'order_lookup': {
         return ok(res,await safeOrderLookup(q(req,'reference')||bodyOf(req).reference));
@@ -774,10 +804,8 @@ module.exports=async function handler(req,res){
         const b=bodyOf(req), token=str(b.payment_token||q(req,'payment_token'),5000); let signed;
         try{signed=verifyPaymentToken(token);}catch(e){return fail(res,e.message,e.status||500);}
         if(!signed)return fail(res,'Payment token tidak valid/kedaluwarsa.',401);
-        const requestedId=str(b.id||q(req,'id'),160);
-        if(requestedId&&requestedId!==String(signed.payment_id))return fail(res,'Payment id tidak cocok dengan token.',401);
         if(!Fulfillment.ready())return fail(res,'Fulfillment store belum dikonfigurasi.',503,Fulfillment.status());
-        return ok(res,{fulfillment:Fulfillment.publicReceipt(await Fulfillment.getReceipt(signed.reference)),reference:signed.reference,payment_id:signed.payment_id});
+        return ok(res,{fulfillment:Fulfillment.publicReceipt(await Fulfillment.getReceipt(signed.reference)),reference:signed.reference});
       }
       case 'fulfillment_retry': {
         if(!method(req,'POST'))return fail(res,'Method tidak diizinkan.',405);

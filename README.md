@@ -267,7 +267,7 @@ Contoh Vercel ENV:
 XSOFTWARE_CHECKOUT_MODE=shared
 XSOFTWARE_SHARED_CHANNEL=whatsapp
 XSOFTWARE_SHARED_SENDER=628xxxxxxxxxx
-XSOFTWARE_SHARED_NAME=VanzShop Checkout
+XSOFTWARE_SHARED_NAME=Zona Premium Checkout
 ```
 
 > Shared mode tetap membutuhkan minimal satu sender existing. Jika tidak ada satu pun sender yang sudah terdaftar dan `/v1/register` dinonaktifkan oleh Xoftware, Order API tidak menyediakan jalur terdokumentasi untuk membuat buyer baru dari project ini.
@@ -1017,7 +1017,3 @@ Kode HTTP	Penjelasan
 
 ### Admin login v9
 Dashboard tidak lagi mengirim `ADMIN_PASSWORD` pada setiap request. Password divalidasi satu kali oleh `admin_login`, lalu browser memakai signed session token selama 12 jam. Setelah mengubah `ADMIN_PASSWORD` di Vercel, lakukan redeploy Production.
-
-### Bot WhatsApp
-
-Worker Baileys untuk Pterodactyl berada di [`whatsapp-bot/`](whatsapp-bot/README.md). Bot mengambil katalog live dari backend VanzShop, menerima pilihan produk/variasi, membuat invoice Sewa Pay, dan mengirim link checkout bertoken yang dapat dibuka lintas perangkat. Rencana pelepasan inventory Xoftware didokumentasikan di [`whatsapp-bot/MIGRASI.md`](whatsapp-bot/MIGRASI.md).

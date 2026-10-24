@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('assets/xshop.js','utf8');
+const begin=source.indexOf('function premiumProducts()'),end=source.indexOf('function premiumHelp()',begin);
+const context={allProducts:()=>[{title:'Canva Pro'},{title:'Pulsa 10k'},{title:'Token PLN'},{title:'Spotify Premium'},{title:'Top up game'}]};
+vm.createContext(context);vm.runInContext(source.slice(begin,end),context);
+assert.equal(context.premiumProducts().length,2);
+assert.match(context.productReputation({rating:4.8,review_count:20,sold:100}),/4,8/);
+for(const product of [{},{rating:5},{rating:8,review_count:10},{rating:5,review_count:0}])assert.match(context.productReputation(product),/Belum ada ulasan/);
+assert.doesNotMatch(context.productReputation({sold:0}),/terjual/);
+console.log('PASS premium catalog scope and truthful ratings');
